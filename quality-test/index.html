@@ -1,0 +1,4336 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IDIEX · Consumable Material QC & Release Testing</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <!-- Firebase (compat build so it works with the existing non-module script) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+    <style>
+      :root {
+        --navy-900: #0e2238;
+        --navy-800: #142f4c;
+        --navy-700: #1b3c61;
+        --navy-600: #27537f;
+        --ink: #0f1d2e;
+        --muted: #5d7186;
+        --faint: #8aa0b5;
+        --paper: #eef2f6;
+        --surface: #fff;
+        --surface-2: #f7fafc;
+        --line: #d7e0ea;
+        --line-2: #e8eef4;
+        --teal: #0c8c8c;
+        --teal-d: #0a7373;
+        --green: #1c8a4d;
+        --green-bg: #e7f5ed;
+        --amber: #bd7d09;
+        --amber-bg: #fbf2dc;
+        --pos: #3b4f9e;
+        --pos-bg: #e9ecfb;
+        --red: #bf3326;
+        --red-bg: #fbe9e7;
+        --shadow:
+          0 1px 2px rgba(16, 29, 46, 0.06), 0 6px 18px rgba(16, 29, 46, 0.07);
+        --shadow-lg: 0 10px 40px rgba(16, 29, 46, 0.16);
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        font-family: "IBM Plex Sans", system-ui, sans-serif;
+        color: var(--ink);
+        background: var(--paper);
+        background-image:
+          linear-gradient(rgba(27, 60, 97, 0.022) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(27, 60, 97, 0.022) 1px, transparent 1px);
+        background-size: 34px 34px;
+        -webkit-font-smoothing: antialiased;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+      .mono {
+        font-family: "IBM Plex Mono", monospace;
+      }
+      .serif {
+        font-family: "IBM Plex Serif", serif;
+      }
+      button {
+        font-family: inherit;
+        cursor: pointer;
+      }
+      input,
+      select,
+      textarea {
+        font-family: inherit;
+        font-size: 13px;
+      }
+      #app {
+        display: grid;
+        grid-template-columns: 252px 1fr;
+        grid-template-rows: auto 1fr;
+        min-height: 100vh;
+      }
+      .topbar {
+        grid-column: 1/3;
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        background: linear-gradient(100deg, var(--navy-900), var(--navy-700));
+        color: #fff;
+        padding: 0 22px;
+        height: 62px;
+        position: sticky;
+        top: 0;
+        z-index: 40;
+        border-bottom: 3px solid var(--teal);
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .logo {
+        width: 38px;
+        height: 38px;
+        border-radius: 8px;
+        display: grid;
+        place-items: center;
+        background: #fff;
+        color: var(--navy-800);
+        font-weight: 700;
+        font-size: 17px;
+        letter-spacing: -1px;
+        font-family: "IBM Plex Serif", serif;
+        box-shadow: inset 0 0 0 2px var(--teal);
+      }
+      .brand b {
+        font-weight: 600;
+        font-size: 15.5px;
+        letter-spacing: 0.2px;
+        display: block;
+      }
+      .brand span {
+        font-size: 11px;
+        color: #9fc0d8;
+        letter-spacing: 0.4px;
+      }
+      .topbar .sep {
+        width: 1px;
+        height: 30px;
+        background: rgba(255, 255, 255, 0.16);
+      }
+      .dev-id {
+        font-size: 11px;
+        color: #bcd2e4;
+        line-height: 1.35;
+      }
+      .dev-id b {
+        color: #fff;
+        font-weight: 500;
+      }
+      .topbar-right {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 20px;
+      }
+      .led-wrap {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        font-size: 11.5px;
+        color: #cfe0ee;
+      }
+      .led {
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        background: var(--green);
+        box-shadow: 0 0 0 3px rgba(28, 138, 77, 0.25);
+      }
+      .led.red {
+        background: var(--red);
+        box-shadow: 0 0 0 3px rgba(191, 51, 38, 0.3);
+      }
+      .led.amber {
+        background: var(--amber);
+        box-shadow: 0 0 0 3px rgba(189, 125, 9, 0.3);
+      }
+      .user-chip {
+        font-size: 12px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        padding: 6px 12px;
+        border-radius: 20px;
+      }
+      .sidebar {
+        background: var(--navy-800);
+        color: #cdd9e6;
+        padding: 16px 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        position: sticky;
+        top: 62px;
+        height: calc(100vh - 62px);
+        overflow: auto;
+      }
+      .nav-label {
+        font-size: 10px;
+        letter-spacing: 1.4px;
+        color: #6f8aa6;
+        text-transform: uppercase;
+        padding: 14px 12px 6px;
+      }
+      .nav-item {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        padding: 10px 12px;
+        border-radius: 8px;
+        color: #c2d2e2;
+        font-size: 13.5px;
+        border: 1px solid transparent;
+        transition: 0.15s;
+        text-align: left;
+        width: 100%;
+        background: none;
+      }
+      .nav-item:hover {
+        background: rgba(255, 255, 255, 0.05);
+        color: #fff;
+      }
+      .nav-item.active {
+        background: linear-gradient(
+          90deg,
+          var(--teal-d),
+          rgba(12, 140, 140, 0.55)
+        );
+        color: #fff;
+        font-weight: 500;
+        box-shadow: var(--shadow);
+      }
+      .nav-item .ic {
+        width: 18px;
+        text-align: center;
+        opacity: 0.9;
+      }
+      .nav-foot {
+        margin-top: auto;
+        font-size: 10.5px;
+        color: #5f7b97;
+        padding: 14px 12px;
+        line-height: 1.6;
+        border-top: 1px solid rgba(255, 255, 255, 0.07);
+      }
+      .main {
+        padding: 26px 30px 60px;
+        overflow: auto;
+      }
+      .view {
+        display: none;
+        animation: rise 0.4s ease both;
+      }
+      .view.active {
+        display: block;
+      }
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      .page-head {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 20px;
+        margin-bottom: 22px;
+        flex-wrap: wrap;
+      }
+      .page-head h1 {
+        font-family: "IBM Plex Serif", serif;
+        font-size: 25px;
+        font-weight: 600;
+        color: var(--navy-900);
+        letter-spacing: -0.2px;
+      }
+      .page-head .sub {
+        color: var(--muted);
+        font-size: 12.5px;
+        margin-top: 3px;
+        max-width: 680px;
+      }
+      .eyebrow {
+        font-size: 10.5px;
+        letter-spacing: 1.6px;
+        text-transform: uppercase;
+        color: var(--teal-d);
+        font-weight: 600;
+        margin-bottom: 5px;
+      }
+      .grid {
+        display: grid;
+        gap: 18px;
+      }
+      .cards-4 {
+        grid-template-columns: repeat(4, 1fr);
+      }
+      .cards-3 {
+        grid-template-columns: repeat(3, 1fr);
+      }
+      .cards-2 {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+      .card-pad {
+        padding: 20px;
+      }
+      .card-h {
+        padding: 14px 18px;
+        border-bottom: 1px solid var(--line-2);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        background: var(--surface-2);
+      }
+      .card-h h3 {
+        font-size: 13.5px;
+        font-weight: 600;
+        color: var(--navy-800);
+        letter-spacing: 0.2px;
+      }
+      .card-h .tag {
+        font-size: 10.5px;
+        color: var(--muted);
+        font-family: "IBM Plex Mono", monospace;
+      }
+      .kpi {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 16px 18px;
+        box-shadow: var(--shadow);
+        position: relative;
+        overflow: hidden;
+      }
+      .kpi:before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 4px;
+        background: var(--teal);
+      }
+      .kpi.k-green:before {
+        background: var(--green);
+      }
+      .kpi.k-amber:before {
+        background: var(--amber);
+      }
+      .kpi.k-red:before {
+        background: var(--red);
+      }
+      .kpi .lab {
+        font-size: 11px;
+        color: var(--muted);
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+      }
+      .kpi .val {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 30px;
+        font-weight: 600;
+        color: var(--navy-900);
+        margin-top: 6px;
+        line-height: 1;
+      }
+      .kpi .note {
+        font-size: 11.5px;
+        color: var(--faint);
+        margin-top: 6px;
+      }
+      .status-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1px;
+        background: var(--line-2);
+      }
+      .status-grid div {
+        background: #fff;
+        padding: 13px 16px;
+      }
+      .status-grid .lab {
+        font-size: 11px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+      }
+      .status-grid .v {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 13px;
+        color: var(--ink);
+        margin-top: 3px;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+      }
+      .dot.ok {
+        background: var(--green);
+      }
+      .dot.warn {
+        background: var(--amber);
+      }
+      .dot.err {
+        background: var(--red);
+      }
+      table.tbl {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      table.tbl th {
+        background: var(--navy-800);
+        color: #dce7f1;
+        font-weight: 500;
+        text-align: left;
+        padding: 10px 14px;
+        font-size: 11.5px;
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+      }
+      table.tbl td {
+        padding: 11px 14px;
+        border-bottom: 1px solid var(--line-2);
+        vertical-align: middle;
+      }
+      table.tbl tr:last-child td {
+        border-bottom: none;
+      }
+      table.tbl tbody tr:hover {
+        background: var(--surface-2);
+      }
+      .empty {
+        padding: 40px;
+        text-align: center;
+        color: var(--faint);
+        font-size: 13px;
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 4px 10px;
+        border-radius: 20px;
+        letter-spacing: 0.3px;
+        white-space: nowrap;
+      }
+      .pill:before {
+        content: "";
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: currentColor;
+        opacity: 0.9;
+      }
+      .p-green {
+        background: var(--green-bg);
+        color: var(--green);
+      }
+      .p-amber {
+        background: var(--amber-bg);
+        color: var(--amber);
+      }
+      .p-red {
+        background: var(--red-bg);
+        color: var(--red);
+      }
+      .p-grey {
+        background: #eef2f6;
+        color: #5d7186;
+      }
+      .p-teal {
+        background: #e2f3f3;
+        color: var(--teal-d);
+      }
+      .field {
+        margin-bottom: 15px;
+      }
+      .field label {
+        display: block;
+        font-size: 11.5px;
+        font-weight: 600;
+        color: var(--navy-700);
+        margin-bottom: 6px;
+        letter-spacing: 0.2px;
+      }
+      .field label .req {
+        color: var(--red);
+      }
+      .field .hint {
+        font-size: 11px;
+        color: var(--faint);
+        margin-top: 5px;
+        line-height: 1.45;
+      }
+      input[type="text"],
+      input[type="number"],
+      input[type="date"],
+      input[type="password"],
+      select,
+      textarea {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        color: var(--ink);
+        transition: 0.15s;
+      }
+      input:focus,
+      select:focus,
+      textarea:focus {
+        outline: none;
+        border-color: var(--teal);
+        box-shadow: 0 0 0 3px rgba(12, 140, 140, 0.13);
+      }
+      input:disabled {
+        background: #f1f5f9;
+        color: var(--faint);
+        cursor: not-allowed;
+      }
+      .form-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0 22px;
+      }
+      .form-grid.three {
+        grid-template-columns: repeat(3, 1fr);
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 18px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        border: 1px solid transparent;
+        transition: 0.15s;
+        letter-spacing: 0.2px;
+      }
+      .btn-primary {
+        background: var(--teal-d);
+        color: #fff;
+        box-shadow: var(--shadow);
+      }
+      .btn-primary:hover {
+        background: #096060;
+      }
+      .btn-navy {
+        background: var(--navy-700);
+        color: #fff;
+      }
+      .btn-navy:hover {
+        background: var(--navy-800);
+      }
+      .btn-ghost {
+        background: #fff;
+        color: var(--navy-700);
+        border-color: var(--line);
+      }
+      .btn-ghost:hover {
+        border-color: var(--teal);
+        color: var(--teal-d);
+      }
+      .btn-sm {
+        padding: 7px 13px;
+        font-size: 12px;
+      }
+      .btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+      .btn-row {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .callout {
+        border-radius: 10px;
+        padding: 13px 16px;
+        font-size: 12.5px;
+        display: flex;
+        gap: 11px;
+        align-items: flex-start;
+        border: 1px solid;
+        line-height: 1.5;
+      }
+      .callout .ic {
+        font-size: 15px;
+      }
+      .co-warn {
+        background: #fff6e8;
+        border-color: #f1d59a;
+        color: #8a5e08;
+      }
+      .co-info {
+        background: #eef5fb;
+        border-color: #c2dcf0;
+        color: #1b466e;
+      }
+      .co-red {
+        background: var(--red-bg);
+        border-color: #f0bdb6;
+        color: #8f2419;
+      }
+      .co-green {
+        background: var(--green-bg);
+        border-color: #b8e0c7;
+        color: #16633a;
+      }
+      .divider {
+        height: 1px;
+        background: var(--line-2);
+        margin: 18px 0;
+      }
+      .flex-between {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .sub-note {
+        font-size: 11.5px;
+        color: var(--muted);
+        line-height: 1.55;
+      }
+      .tiny-mono {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 11px;
+        color: var(--faint);
+      }
+      .scroll-x {
+        overflow-x: auto;
+      }
+      .modal-bg {
+        position: fixed;
+        inset: 0;
+        background: rgba(14, 34, 56, 0.55);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 80;
+        backdrop-filter: blur(2px);
+      }
+      .modal-bg.show {
+        display: flex;
+      }
+      .modal {
+        background: #fff;
+        border-radius: 14px;
+        width: 440px;
+        max-width: 92vw;
+        box-shadow: var(--shadow-lg);
+        overflow: hidden;
+        animation: rise 0.25s both;
+      }
+      .modal-h {
+        background: var(--navy-800);
+        color: #fff;
+        padding: 16px 20px;
+        font-weight: 600;
+        font-size: 14px;
+      }
+      .modal-b {
+        padding: 20px;
+      }
+      .toast {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        background: var(--navy-900);
+        color: #fff;
+        padding: 13px 18px;
+        border-radius: 10px;
+        font-size: 13px;
+        box-shadow: var(--shadow-lg);
+        z-index: 90;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        transform: translateY(80px);
+        opacity: 0;
+        transition: 0.3s;
+        border-left: 4px solid var(--teal);
+      }
+      .toast.show {
+        transform: none;
+        opacity: 1;
+      }
+      .toast.err {
+        border-left-color: var(--red);
+      }
+      .toast.ok {
+        border-left-color: var(--green);
+      }
+      /* test panel */
+      .test-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12.5px;
+      }
+      .test-table th {
+        background: var(--surface-2);
+        color: var(--navy-700);
+        text-align: left;
+        padding: 9px 12px;
+        font-size: 10.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 1px solid var(--line);
+      }
+      .test-table td {
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--line-2);
+        vertical-align: middle;
+      }
+      .test-table .pname {
+        font-weight: 500;
+      }
+      .test-table .meth {
+        font-size: 11px;
+        color: var(--faint);
+      }
+      .test-table input,
+      .test-table select {
+        padding: 7px 9px;
+      }
+      .spec-mini {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .spec-mini input {
+        width: 62px;
+        text-align: center;
+        padding: 6px;
+      }
+      .cat-tab {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        border-radius: 8px 8px 0 0;
+        font-size: 12.5px;
+        font-weight: 600;
+        color: var(--muted);
+        border: 1px solid transparent;
+        border-bottom: none;
+        cursor: pointer;
+      }
+      .cat-tab.active {
+        color: var(--navy-900);
+        background: #fff;
+        border-color: var(--line);
+      }
+      .cat-badge {
+        font-size: 10px;
+        padding: 1px 7px;
+        border-radius: 10px;
+        background: #eef2f6;
+        color: var(--muted);
+      }
+      .verdict-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 16px 20px;
+        border-radius: 12px;
+        background: linear-gradient(100deg, var(--navy-800), var(--navy-700));
+        color: #fff;
+        flex-wrap: wrap;
+      }
+      .verdict-bar .big {
+        font-family: "IBM Plex Serif", serif;
+        font-size: 20px;
+      }
+      /* searchable combobox */
+      .combo {
+        position: relative;
+      }
+      .combo-list {
+        position: absolute;
+        z-index: 30;
+        left: 0;
+        right: 0;
+        top: calc(100% + 4px);
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        box-shadow: var(--shadow-lg);
+        max-height: 300px;
+        overflow: auto;
+        display: none;
+      }
+      .combo-list.show {
+        display: block;
+      }
+      .combo-group {
+        font-size: 10px;
+        letter-spacing: 0.9px;
+        text-transform: uppercase;
+        color: var(--teal-d);
+        font-weight: 700;
+        padding: 9px 12px 4px;
+        background: var(--surface-2);
+        position: sticky;
+        top: 0;
+        border-bottom: 1px solid var(--line-2);
+      }
+      .combo-opt {
+        padding: 9px 12px;
+        font-size: 13px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        border-bottom: 1px solid var(--line-2);
+      }
+      .combo-opt:hover,
+      .combo-opt.kb {
+        background: var(--surface-2);
+      }
+      .combo-opt .meta {
+        font-size: 11px;
+        color: var(--faint);
+        font-family: "IBM Plex Mono", monospace;
+        white-space: nowrap;
+      }
+      .combo-opt .nm {
+        font-weight: 500;
+        color: var(--ink);
+      }
+      .combo-empty {
+        padding: 16px;
+        text-align: center;
+        color: var(--faint);
+        font-size: 12px;
+      }
+      @media (max-width: 900px) {
+        #app {
+          grid-template-columns: 1fr;
+        }
+        .sidebar {
+          display: none;
+        }
+        .cards-4,
+        .cards-3,
+        .cards-2 {
+          grid-template-columns: 1fr 1fr;
+        }
+        .form-grid,
+        .form-grid.three {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  
+    <style id="quality-direct-gate-style">
+      #qualityGateOverlay { display: none; }
+      html.quality-gate-locked body { overflow: hidden; }
+      html.quality-gate-locked body > *:not(#qualityGateOverlay) {
+        filter: blur(4px);
+        pointer-events: none;
+        user-select: none;
+      }
+      html.quality-gate-locked #qualityGateOverlay {
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        background: rgba(14, 34, 56, 0.72);
+        backdrop-filter: blur(10px);
+        font-family: "IBM Plex Sans", system-ui, sans-serif;
+      }
+      .quality-gate-box {
+        width: min(440px, 100%);
+        background: #fff;
+        color: #0f1d2e;
+        border-radius: 24px;
+        padding: 30px;
+        box-shadow: 0 30px 100px rgba(0,0,0,0.30);
+        border: 1px solid rgba(255,255,255,0.75);
+      }
+      .quality-gate-icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 18px;
+        display: grid;
+        place-items: center;
+        margin-bottom: 16px;
+        color: #fff;
+        background: linear-gradient(135deg, #0f5fa8, #0fa7a0);
+        font-size: 26px;
+        font-weight: 800;
+      }
+      .quality-gate-box h2 {
+        margin: 0 0 8px;
+        font-size: 24px;
+        color: #0e2238;
+      }
+      .quality-gate-box p {
+        margin: 0 0 18px;
+        color: #5d7186;
+        line-height: 1.6;
+      }
+      #qualityGatePassword {
+        width: 100%;
+        border: 1px solid #d7e0ea;
+        border-radius: 16px;
+        padding: 15px 16px;
+        font-size: 19px;
+        letter-spacing: 6px;
+        outline: none;
+      }
+      #qualityGatePassword:focus {
+        border-color: #0f5fa8;
+        box-shadow: 0 0 0 5px rgba(15,95,168,0.12);
+      }
+      #qualityGateError {
+        min-height: 22px;
+        margin-top: 10px;
+        color: #bf3326;
+        font-size: 14px;
+        font-weight: 700;
+      }
+      #qualityGateButton {
+        width: 100%;
+        margin-top: 12px;
+        border: 0;
+        border-radius: 16px;
+        padding: 15px 18px;
+        cursor: pointer;
+        color: #fff;
+        font-weight: 800;
+        font-size: 15px;
+        background: linear-gradient(135deg, #0f5fa8, #0fa7a0);
+        box-shadow: 0 16px 32px rgba(15,95,168,0.22);
+      }
+    </style>
+    <script id="quality-direct-gate-lock">
+      (function () {
+        if (sessionStorage.getItem("qualityTestAccess") !== "granted") {
+          document.documentElement.classList.add("quality-gate-locked");
+        }
+      })();
+    </script>
+
+  </head>
+  <body>
+
+    <div id="qualityGateOverlay" role="dialog" aria-modal="true" aria-labelledby="qualityGateTitle">
+      <div class="quality-gate-box">
+        <div class="quality-gate-icon" aria-hidden="true">QC</div>
+        <h2 id="qualityGateTitle">Enter password</h2>
+        <p>This Quality Testing project is protected. Enter the password to continue.</p>
+        <input id="qualityGatePassword" type="password" inputmode="numeric" placeholder="••••" autocomplete="off" />
+        <div id="qualityGateError"></div>
+        <button id="qualityGateButton" type="button">Continue</button>
+      </div>
+    </div>
+    <script id="quality-direct-gate-script">
+      (function () {
+        const expectedHash = "79f06f8fde333461739f220090a23cb2a79f6d714bee100d0e4b4af249294619";
+        const passwordInput = document.getElementById("qualityGatePassword");
+        const errorBox = document.getElementById("qualityGateError");
+        const openButton = document.getElementById("qualityGateButton");
+
+        async function sha256(text) {
+          const encoded = new TextEncoder().encode(text);
+          const buffer = await crypto.subtle.digest("SHA-256", encoded);
+          return Array.from(new Uint8Array(buffer))
+            .map(byte => byte.toString(16).padStart(2, "0"))
+            .join("");
+        }
+
+        async function unlockQualityPage() {
+          const password = (passwordInput.value || "").trim();
+          if (!password) {
+            errorBox.textContent = "Please enter the password.";
+            passwordInput.focus();
+            return;
+          }
+          const typedHash = await sha256(password);
+          if (typedHash === expectedHash) {
+            sessionStorage.setItem("qualityTestAccess", "granted");
+            document.documentElement.classList.remove("quality-gate-locked");
+            errorBox.textContent = "";
+          } else {
+            errorBox.textContent = "Wrong password. Please try again.";
+            passwordInput.select();
+          }
+        }
+
+        if (document.documentElement.classList.contains("quality-gate-locked")) {
+          setTimeout(() => passwordInput.focus(), 120);
+        }
+        openButton.addEventListener("click", unlockQualityPage);
+        passwordInput.addEventListener("keydown", event => {
+          if (event.key === "Enter") unlockQualityPage();
+        });
+      })();
+    </script>
+
+    <div id="app">
+      <header class="topbar">
+        <div class="brand">
+          <div class="logo">CC</div>
+          <div>
+            <b>Miracell · IDIEX Material QC</b
+            ><span
+              >Consumable physical · chemical · microbiological release
+              testing</span
+            >
+          </div>
+        </div>
+        <div class="sep"></div>
+        <div class="dev-id">
+          Instrument <b>IDX-PROD-2026-0001</b><br />SW <b>v1.0.3</b> · CV
+          <b>IDIEX-CV-v1.0.2</b>
+        </div>
+        <div class="topbar-right">
+          <div class="led-wrap">
+            <span class="led green" id="led"></span
+            ><span id="led-text">Connecting…</span>
+          </div>
+          <div class="user-chip">QC Analyst · E. Zyada</div>
+        </div>
+      </header>
+
+      <nav class="sidebar">
+        <div class="nav-label">Quality control</div>
+        <button class="nav-item active" data-view="dashboard">
+          <span class="ic">▣</span>Dashboard
+        </button>
+        <button class="nav-item" data-view="test">
+          <span class="ic">⊕</span>New material test
+        </button>
+        <button class="nav-item" data-view="lots">
+          <span class="ic">▤</span>Batch / lot register
+        </button>
+        <div class="nav-label">Verification</div>
+        <button class="nav-item" data-view="qc">
+          <span class="ic">∿</span>Instrument fluorescence QC
+        </button>
+        <button class="nav-item" data-view="strains">
+          <span class="ic">⊙</span>Reference strains
+        </button>
+        <div class="nav-label">Output</div>
+        <button class="nav-item" data-view="reports">
+          <span class="ic">▦</span>Records &amp; CoA
+        </button>
+        <button class="nav-item" data-view="protocols">
+          <span class="ic">✓</span>Release protocols
+        </button>
+        <div class="nav-foot">
+          Class C IVD consumables<br />ISO 13485:2016 · ISO 11133<br />CLSI
+          M100-Ed34 QC ranges<br /><span
+            class="tiny-mono"
+            id="data-mode"
+          ></span>
+        </div>
+      </nav>
+
+      <main class="main">
+        <!-- DASHBOARD -->
+        <section class="view active" id="view-dashboard">
+          <div class="page-head">
+            <div>
+              <div class="eyebrow">Batch release overview</div>
+              <h1>Material QC Dashboard</h1>
+              <div class="sub">
+                Physical, chemical and microbiological characterization of every
+                incoming consumable batch before release to clinical use.
+              </div>
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-ghost btn-sm" onclick="App.seedDemo()">
+                Load sample data
+              </button>
+              <button class="btn btn-primary btn-sm" onclick="App.go('test')">
+                + New material test
+              </button>
+            </div>
+          </div>
+          <div class="grid cards-4" style="margin-bottom: 18px">
+            <div class="kpi k-teal">
+              <div class="lab">Batches tested</div>
+              <div class="val" id="k-tested">0</div>
+              <div class="note">all materials</div>
+            </div>
+            <div class="kpi k-green">
+              <div class="lab">Conforming · released</div>
+              <div class="val" id="k-pass">0</div>
+              <div class="note">CoA issued</div>
+            </div>
+            <div class="kpi k-red">
+              <div class="lab">Non-conforming</div>
+              <div class="val" id="k-fail">0</div>
+              <div class="note">quarantined</div>
+            </div>
+            <div class="kpi k-amber">
+              <div class="lab">In progress</div>
+              <div class="val" id="k-open">0</div>
+              <div class="note">pending result</div>
+            </div>
+          </div>
+          <div class="grid cards-2">
+            <div class="card">
+              <div class="card-h">
+                <h3>Test methods in this panel</h3>
+                <span class="tag">3 domains</span>
+              </div>
+              <div class="status-grid">
+                <div>
+                  <div class="lab">Physical</div>
+                  <div class="v">
+                    <span class="dot ok"></span>Appearance · clarity · fill ·
+                    seal · cold-chain
+                  </div>
+                </div>
+                <div>
+                  <div class="lab">Chemical</div>
+                  <div class="v">
+                    <span class="dot ok"></span>pH · concentration · reagent
+                    activation
+                  </div>
+                </div>
+                <div>
+                  <div class="lab">Microbiological</div>
+                  <div class="v">
+                    <span class="dot ok"></span>Sterility · growth promotion ·
+                    selectivity
+                  </div>
+                </div>
+                <div>
+                  <div class="lab">Instrumental</div>
+                  <div class="v">
+                    <span class="dot ok"></span>BacteScan blank &amp; recovery
+                    RFU
+                  </div>
+                </div>
+                <div>
+                  <div class="lab">ID / AST QC</div>
+                  <div class="v">
+                    <span class="dot ok"></span>Strip reaction vs reference
+                    profile
+                  </div>
+                </div>
+                <div>
+                  <div class="lab">Optical QC</div>
+                  <div class="v" id="ds-qc">
+                    <span class="dot ok"></span>Within ±2 SD
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-h"><h3>Conformance by material</h3></div>
+              <div class="card-pad" id="bymat"></div>
+            </div>
+          </div>
+          <div class="card" style="margin-top: 18px">
+            <div class="card-h">
+              <h3>Recent batch QC records</h3>
+              <button class="btn btn-ghost btn-sm" onclick="App.go('reports')">
+                View all
+              </button>
+            </div>
+            <div class="scroll-x">
+              <table class="tbl">
+                <thead>
+                  <tr>
+                    <th>QC ID</th>
+                    <th>Material</th>
+                    <th>Lot</th>
+                    <th>Tests P/F</th>
+                    <th>Verdict</th>
+                    <th>Status</th>
+                    <th>Analyst</th>
+                  </tr>
+                </thead>
+                <tbody id="recent-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- NEW TEST -->
+        <section class="view" id="view-test">
+          <div class="page-head">
+            <div>
+              <div class="eyebrow">Characterization &amp; release testing</div>
+              <h1>New Material QC Test</h1>
+              <div class="sub">
+                Select a consumable and batch, then record every physical,
+                chemical and microbiological parameter. Conformance is computed
+                live against the acceptance criteria.
+              </div>
+            </div>
+          </div>
+
+          <div class="card" id="test-setup">
+            <div class="card-h">
+              <h3>Test setup</h3>
+              <span class="tag">material · batch · analyst</span>
+            </div>
+            <div class="card-pad">
+              <div class="form-grid three">
+                <div class="field">
+                  <label
+                    >Material / consumable <span class="req">*</span></label
+                  >
+                  <div class="combo" id="combo-mat">
+                    <input
+                      type="text"
+                      id="mat-search"
+                      placeholder="Search products…"
+                      autocomplete="off"
+                    />
+                    <input type="hidden" id="t-mat" />
+                    <div class="combo-list" id="mat-list"></div>
+                  </div>
+                  <div class="hint">
+                    All products from the production-hall project, grouped by
+                    classification (consumable / primary / secondary /
+                    tertiary). Type to filter.
+                  </div>
+                </div>
+                <div class="field">
+                  <label>Batch / lot <span class="req">*</span></label>
+                  <div class="combo" id="combo-lot">
+                    <input
+                      type="text"
+                      id="lot-search"
+                      placeholder="Select a product first…"
+                      autocomplete="off"
+                      disabled
+                    />
+                    <input type="hidden" id="t-lot" />
+                    <div class="combo-list" id="lot-list"></div>
+                  </div>
+                  <div class="hint">
+                    Batches for the selected product. Type to search the lot you
+                    want.
+                  </div>
+                </div>
+                <div class="field">
+                  <label>Analyst</label
+                  ><input
+                    type="text"
+                    id="t-analyst"
+                    value="E. Zyada (QC Analyst)"
+                  />
+                </div>
+              </div>
+              <div class="btn-row" style="justify-content: flex-end">
+                <button class="btn btn-primary" onclick="Test.start()">
+                  Build test panel →
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div id="test-panel" style="display: none">
+            <div class="flex-between" style="margin: 4px 2px 14px">
+              <div id="panel-meta"></div>
+              <div class="btn-row">
+                <div
+                  class="cat-tab active"
+                  data-cat="Physical"
+                  onclick="Test.tab('Physical')"
+                >
+                  Physical <span class="cat-badge" id="cb-Physical">0</span>
+                </div>
+                <div
+                  class="cat-tab"
+                  data-cat="Chemical"
+                  onclick="Test.tab('Chemical')"
+                >
+                  Chemical <span class="cat-badge" id="cb-Chemical">0</span>
+                </div>
+                <div
+                  class="cat-tab"
+                  data-cat="Microbiological"
+                  onclick="Test.tab('Microbiological')"
+                >
+                  Microbiological
+                  <span class="cat-badge" id="cb-Microbiological">0</span>
+                </div>
+              </div>
+            </div>
+            <div class="card"><div id="cat-body"></div></div>
+            <div class="callout co-info" style="margin-top: 14px">
+              <span class="ic">ℹ</span>
+              <div>
+                Acceptance criteria shown are editable defaults aligned to the
+                IFU/SOP and common media-QC practice (ISO 11133, CLSI
+                M100-Ed34).
+                <b
+                  >Confirm every limit against your validated product
+                  specification</b
+                >
+                before release.
+              </div>
+            </div>
+
+            <div
+              class="verdict-bar"
+              id="verdict-bar"
+              style="margin-top: 18px"
+            ></div>
+
+            <div class="card" style="margin-top: 18px">
+              <div class="card-h"><h3>Disposition &amp; authorisation</h3></div>
+              <div class="card-pad">
+                <div class="field" id="note-wrap" style="display: none">
+                  <label>Non-conformance / deviation note</label>
+                  <textarea
+                    id="t-note"
+                    rows="3"
+                    placeholder="Describe the out-of-specification result and CAPA reference…"
+                  ></textarea>
+                </div>
+                <div class="form-grid">
+                  <div class="field">
+                    <label>Authorising QC officer</label
+                    ><input
+                      type="text"
+                      id="t-auth"
+                      value="E. Zyada (QC Analyst)"
+                    />
+                  </div>
+                  <div class="field">
+                    <label>Credential</label
+                    ><input type="password" id="t-pw" placeholder="••••••••" />
+                  </div>
+                </div>
+                <div class="btn-row" style="justify-content: flex-end">
+                  <button class="btn btn-ghost" onclick="Test.save('Pending')">
+                    Save in progress
+                  </button>
+                  <button
+                    class="btn btn-navy"
+                    onclick="Test.save('Quarantined')"
+                  >
+                    Reject &amp; quarantine
+                  </button>
+                  <button
+                    class="btn btn-primary"
+                    id="release-btn"
+                    onclick="Test.save('Released')"
+                  >
+                    Release &amp; issue CoA
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- LOTS -->
+        <section class="view" id="view-lots">
+          <div class="page-head">
+            <div>
+              <div class="eyebrow">Incoming material control</div>
+              <h1>Batch / Lot Register</h1>
+              <div class="sub">
+                All consumable batches from the production-hall project, plus
+                any locally registered incoming batches. Inspected, in-date lots
+                can enter QC testing.
+              </div>
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-ghost" onclick="DB.reload()">
+                ↻ Refresh from Firebase
+              </button>
+              <button class="btn btn-primary" onclick="App.openLotModal()">
+                + Register batch
+              </button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-h">
+              <h3>Registered batches</h3>
+              <span class="tag" id="lots-count"
+                >material · lot · expiry · status</span
+              >
+            </div>
+            <div class="card-pad" style="padding-bottom: 12px">
+              <div class="form-grid" style="align-items: end">
+                <div class="field" style="margin-bottom: 0">
+                  <label>Search batch / lot register</label>
+                  <input
+                    type="text"
+                    id="lots-search"
+                    placeholder="Search by material, REF, lot, batch number, classification, status, or source…"
+                    autocomplete="off"
+                    oninput="App.renderLots()"
+                  />
+                  <div class="hint">
+                    Filters all Production Hall and local batches instantly,
+                    like the product search.
+                  </div>
+                </div>
+                <div
+                  class="btn-row"
+                  style="justify-content: flex-end; margin-bottom: 20px"
+                >
+                  <button
+                    class="btn btn-ghost btn-sm"
+                    onclick="App.clearLotSearch()"
+                  >
+                    Clear search
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="scroll-x">
+              <table class="tbl">
+                <thead>
+                  <tr>
+                    <th>Material</th>
+                    <th>REF</th>
+                    <th>Lot</th>
+                    <th>Mfg</th>
+                    <th>Expiry</th>
+                    <th>Inspection</th>
+                    <th>Status</th>
+                    <th>Source</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="lots-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- FLUORESCENCE QC -->
+        <section class="view" id="view-qc">
+          <div class="page-head">
+            <div>
+              <div class="eyebrow">Instrument verification · §11.2</div>
+              <h1>Fluorescence QC</h1>
+              <div class="sub">
+                Optical-path control before any microbiological recovery reading
+                is trusted. A point beyond ±2 SD triggers QC_LOCKOUT.
+              </div>
+            </div>
+          </div>
+          <div class="grid cards-2">
+            <div class="card">
+              <div class="card-h"><h3>Record weekly QC</h3></div>
+              <div class="card-pad">
+                <div class="form-grid">
+                  <div class="field">
+                    <label>Target mean (RFU)</label
+                    ><input type="number" id="qc-mean" value="100" />
+                  </div>
+                  <div class="field">
+                    <label>1 SD (RFU)</label
+                    ><input type="number" id="qc-sd" value="4" />
+                  </div>
+                  <div class="field">
+                    <label>Cuvette A</label><input type="number" id="qc-a" />
+                  </div>
+                  <div class="field">
+                    <label>Cuvette B</label><input type="number" id="qc-b" />
+                  </div>
+                </div>
+                <div class="btn-row" style="justify-content: flex-end">
+                  <button class="btn btn-primary" onclick="QC.add()">
+                    Run &amp; plot
+                  </button>
+                </div>
+                <div id="qc-verdict" style="margin-top: 14px"></div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-h">
+                <h3>Levey-Jennings</h3>
+                <span class="tag" id="qc-status-tag">—</span>
+              </div>
+              <div style="padding: 18px">
+                <canvas id="ljchart" width="520" height="300"></canvas>
+              </div>
+            </div>
+          </div>
+          <div class="card" style="margin-top: 18px">
+            <div class="card-h"><h3>QC history</h3></div>
+            <div class="scroll-x">
+              <table class="tbl">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>A</th>
+                    <th>B</th>
+                    <th>Mean</th>
+                    <th>Z</th>
+                    <th>Verdict</th>
+                  </tr>
+                </thead>
+                <tbody id="qc-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- STRAINS -->
+        <section class="view" id="view-strains">
+          <div class="page-head">
+            <div>
+              <div class="eyebrow">Microbiological QC organisms</div>
+              <h1>Reference Strains</h1>
+              <div class="sub">
+                ATCC reference strains used for sterility, growth-promotion and
+                ID/AST verification, per the IFU validation panel and ISO 11133
+                / CLSI M100-Ed34.
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-h"><h3>Validated reference panel</h3></div>
+            <div class="scroll-x">
+              <table class="tbl">
+                <thead>
+                  <tr>
+                    <th>Organism</th>
+                    <th>ATCC</th>
+                    <th>Group</th>
+                    <th>Used to verify</th>
+                  </tr>
+                </thead>
+                <tbody id="strains-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- REPORTS -->
+        <section class="view" id="view-reports">
+          <div class="page-head">
+            <div>
+              <div class="eyebrow">Certificates of Analysis</div>
+              <h1>Records &amp; CoA</h1>
+              <div class="sub">
+                Each released batch produces a Certificate of Analysis with all
+                physical, chemical and microbiological results and a SHA-256
+                content digest.
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-h">
+              <h3>Batch QC records</h3>
+              <span class="tag" id="rep-count">0 records</span>
+            </div>
+            <div class="scroll-x">
+              <table class="tbl">
+                <thead>
+                  <tr>
+                    <th>QC ID</th>
+                    <th>Material</th>
+                    <th>Lot</th>
+                    <th>Tests P/F</th>
+                    <th>Verdict</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                    <th>CoA</th>
+                  </tr>
+                </thead>
+                <tbody id="reports-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- PROTOCOLS -->
+        <section class="view" id="view-protocols">
+          <div class="page-head">
+            <div>
+              <div class="eyebrow">Final quality protocols</div>
+              <h1>Release Protocols</h1>
+              <div class="sub">
+                Gates applied automatically before a batch can be released and
+                its CoA issued.
+              </div>
+            </div>
+          </div>
+          <div class="grid cards-2">
+            <div class="card">
+              <div class="card-h"><h3>Batch release gates</h3></div>
+              <div class="card-pad" id="proto-list"></div>
+            </div>
+            <div class="card">
+              <div class="card-h">
+                <h3>Troubleshooting matrix</h3>
+                <span class="tag">SOP §9</span>
+              </div>
+              <div class="scroll-x">
+                <table class="tbl">
+                  <thead>
+                    <tr>
+                      <th>Problem</th>
+                      <th>Cause</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="trouble-body"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- LOT MODAL -->
+    <div class="modal-bg" id="lot-modal">
+      <div class="modal">
+        <div class="modal-h">Register / inspect consumable batch</div>
+        <div class="modal-b">
+          <div class="field">
+            <label>Material <span class="req">*</span></label
+            ><select id="lm-type"></select>
+          </div>
+          <div class="form-grid">
+            <div class="field">
+              <label>Catalogue REF</label
+              ><input type="text" id="lm-ref" placeholder="MIR-IDX-…" />
+            </div>
+            <div class="field">
+              <label>Lot code <span class="req">*</span></label
+              ><input type="text" id="lm-lot" placeholder="GP-2602-001" />
+            </div>
+            <div class="field">
+              <label>Manufacture</label><input type="date" id="lm-mfg" />
+            </div>
+            <div class="field">
+              <label>Expiry <span class="req">*</span></label
+              ><input type="date" id="lm-exp" />
+            </div>
+          </div>
+          <div class="field">
+            <label>Incoming inspection</label
+            ><select id="lm-insp">
+              <option value="pass">
+                Pass — packaging intact, cold-chain tag OK, no abnormal
+                appearance
+              </option>
+              <option value="fail">
+                Fail — damage / breached cold chain / abnormal appearance
+              </option>
+            </select>
+            <div class="hint">
+              Failed batches are quarantined and excluded from QC testing.
+              Locally registered batches are stored on this device only.
+            </div>
+          </div>
+          <div class="btn-row" style="justify-content: flex-end">
+            <button class="btn btn-ghost" onclick="App.closeLotModal()">
+              Cancel
+            </button>
+            <button class="btn btn-primary" onclick="App.saveLot()">
+              Save batch
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+      /* ============================================================
+   IDIEX MATERIAL QC — physical / chemical / microbiological
+   release testing of consumable batches (no patient data)
+   Now reads PRODUCTS and BATCHES from the production-hall
+   Firebase (Firestore) project.
+   ============================================================ */
+
+      /* ============================================================
+   1) FIREBASE CONFIG  ←  PASTE YOUR PRODUCTION-HALL PROJECT CONFIG HERE
+   Get it from: Firebase console → Project settings → Your apps → SDK setup
+   ============================================================ */
+      const FIREBASE_CONFIG = {
+        apiKey: "AIzaSyDvXWg8Xw1Tt7oMbH8KVZ6Rj2h3gXb-9qc",
+        authDomain: "production-hall-82f07.firebaseapp.com",
+        projectId: "production-hall-82f07",
+        storageBucket: "production-hall-82f07.firebasestorage.app",
+        messagingSenderId: "889377236324",
+        appId: "1:889377236324:web:a70efa80705a51d8da0671",
+        measurementId: "G-C9M9P2JFDY",
+      };
+
+      /* ============================================================
+   2) DATA MAPPING  ←  ADJUST TO MATCH YOUR FIRESTORE SCHEMA
+   - collection names of your products and batches
+   - field names: the loader tries each listed name in order and
+     uses the first one it finds, so you can usually leave the lists
+     as-is. If a value never shows up, add your real field name.
+   ============================================================ */
+      const DBCFG = {
+        /*
+          Production Hall stores the four product classifications in separate
+          Firestore collections, not in one generic "products" collection.
+          The QC page reads all four and exposes them in one searchable picker.
+        */
+        productCollections: [
+          { name: "consumables", category: "Consumable" },
+          { name: "primaryProducts", category: "Primary" },
+          { name: "secondaryProducts", category: "Secondary" },
+          { name: "tertiaryProducts", category: "Tertiary" },
+        ],
+        batchesCollection: "batches", // Production Hall batch / patch register
+        batchesCollectionGroup: false, // set true only if batches are sub-collections
+
+        product: {
+          name: ["name", "productName", "title", "itemName", "description"],
+          category: [
+            "category",
+            "classified",
+            "classification",
+            "type",
+            "productType",
+            "itemType",
+            "class",
+            "level",
+          ],
+          ref: ["ref", "code", "sku", "catalogue", "catalog", "itemCode"],
+          panelType: ["panelType", "qcType", "panel", "testType"], // optional: GP/GN/STA/STR/PSE/SAL/SALINE/IDX/CR/strip
+          quantity: ["quantity", "stock", "available", "availableQuantity"],
+        },
+        batch: {
+          product: [
+            "itemId",
+            "productId",
+            "product",
+            "productRef",
+            "materialId",
+          ], // Production Hall uses itemId
+          productName: [
+            "itemName",
+            "productName",
+            "product",
+            "material",
+            "name",
+          ], // Production Hall uses itemName
+          type: [
+            "itemType",
+            "category",
+            "classified",
+            "classification",
+            "productType",
+          ],
+          ref: ["ref", "code", "sku", "catalogue"],
+          lot: [
+            "batchNumber",
+            "lot",
+            "lotCode",
+            "batchNo",
+            "batch",
+            "lotNumber",
+          ], // Production Hall uses batchNumber
+          mfg: [
+            "mfg",
+            "manufactureDate",
+            "mfgDate",
+            "productionDate",
+            "madeOn",
+            "mfgOn",
+          ],
+          exp: [
+            "exp",
+            "expiry",
+            "expiryDate",
+            "expDate",
+            "expiresOn",
+            "bestBefore",
+          ],
+          status: [
+            "qualityStatus",
+            "status",
+            "inspection",
+            "insp",
+            "qcStatus",
+            "state",
+            "disposition",
+          ],
+        },
+      };
+
+      const CATEGORY_ORDER = ["Consumable", "Primary", "Secondary", "Tertiary"];
+
+      /* ---- Reference strains (IFU validation panel) ---- */
+      const STRAINS = [
+        [
+          "Escherichia coli",
+          "ATCC 25922",
+          "Gram-negative rod",
+          "GN growth promotion · AST QC",
+        ],
+        [
+          "Klebsiella pneumoniae",
+          "ATCC 700603",
+          "Gram-negative rod",
+          "GN growth promotion · ESBL QC",
+        ],
+        [
+          "Pseudomonas aeruginosa",
+          "ATCC 27853",
+          "Gram-negative rod",
+          "Pseudomonas bottle · AST QC",
+        ],
+        [
+          "Salmonella Typhimurium",
+          "ATCC 14028",
+          "Gram-negative rod",
+          "Salmonella bottle growth promotion",
+        ],
+        [
+          "Staphylococcus aureus",
+          "ATCC 29213",
+          "Gram-positive coccus",
+          "Staph/GP growth promotion · AST QC",
+        ],
+        [
+          "Staphylococcus aureus (MRSA)",
+          "ATCC 43300",
+          "Gram-positive coccus",
+          "Cefoxitin/oxacillin MRSA detection QC",
+        ],
+        [
+          "Staphylococcus epidermidis",
+          "ATCC 12228",
+          "Gram-positive coccus (CoNS)",
+          "Staph bottle · sterility control",
+        ],
+        [
+          "Streptococcus pneumoniae",
+          "ATCC 49619",
+          "Gram-positive coccus",
+          "Strep bottle growth promotion · AST QC",
+        ],
+        [
+          "Enterococcus faecalis",
+          "ATCC 29212",
+          "Gram-positive coccus",
+          "GP growth promotion · vancomycin QC",
+        ],
+      ];
+      const STRAIN_OF = {
+        GP: [
+          "Staphylococcus aureus ATCC 29213",
+          "Enterococcus faecalis ATCC 29212",
+        ],
+        GN: [
+          "Escherichia coli ATCC 25922",
+          "Klebsiella pneumoniae ATCC 700603",
+        ],
+        STA: [
+          "Staphylococcus aureus ATCC 29213",
+          "Staphylococcus epidermidis ATCC 12228",
+        ],
+        STR: ["Streptococcus pneumoniae ATCC 49619"],
+        PSE: ["Pseudomonas aeruginosa ATCC 27853"],
+        SAL: ["Salmonella Typhimurium ATCC 14028"],
+        IDX: ["Escherichia coli ATCC 25922"],
+      };
+
+      /* ---- Static materials (used in local fallback mode and for QC panel definitions) ---- */
+      const MATERIALS = {
+        GP: {
+          name: "Gram Positive (GP) culture bottle",
+          cat: "culture",
+          app: "Clear pink-red, no precipitate",
+        },
+        GN: {
+          name: "Gram Negative (GN) culture bottle",
+          cat: "culture",
+          app: "Clear pink-red, no precipitate",
+        },
+        STA: {
+          name: "Staphylococcus culture bottle",
+          cat: "culture",
+          app: "Clear pink-red, no precipitate",
+        },
+        STR: {
+          name: "Streptococcus culture bottle",
+          cat: "culture",
+          app: "Clear pink-red, no precipitate",
+        },
+        PSE: {
+          name: "Pseudomonas culture bottle",
+          cat: "culture",
+          app: "Clear pink-red, no precipitate",
+        },
+        SAL: {
+          name: "Salmonella culture bottle",
+          cat: "culture",
+          app: "Clear pink-red, no precipitate",
+        },
+        SALINE: {
+          name: "Saline diluent bottle",
+          cat: "saline",
+          app: "Clear, colourless, no particulates",
+        },
+        IDX: {
+          name: "IDIEX bottle",
+          cat: "idx",
+          app: "Clear, as specified, no precipitate",
+        },
+        CR: {
+          name: "Colorimetric reagent",
+          cat: "reagent",
+          app: "Colour-neutral / clear, no precipitate",
+        },
+        SW: {
+          name: "Biochemical strip — White (W)",
+          cat: "strip",
+          ind: "White-strip indicator colour",
+        },
+        SK: {
+          name: "Biochemical strip — Black (K)",
+          cat: "strip",
+          ind: "Black-strip indicator colour",
+        },
+        SG: {
+          name: "Biochemical strip — Green (G)",
+          cat: "strip",
+          ind: "Green-strip indicator colour",
+        },
+        SR: {
+          name: "Biochemical strip — Red (R)",
+          cat: "strip",
+          ind: "Red-strip indicator colour",
+        },
+      };
+
+      /* ---- Test panel builder ---- */
+      function T(o) {
+        return Object.assign({ result: "" }, o);
+      } // factory
+      function panelFor(key, fallbackName) {
+        const M = MATERIALS[key];
+        if (!M) return genericPanel(fallbackName || key);
+        const S = [];
+        const ster = () =>
+          T({
+            name: "Sterility (uninoculated control, 24 h @ 36 °C)",
+            method: "ISO 11133 / USP <71> incubation",
+            kind: "choice",
+            opts: ["Sterile — no growth", "Contaminated — growth observed"],
+            expect: "Sterile — no growth",
+          });
+        if (M.cat === "culture") {
+          S.push({
+            cat: "Physical",
+            tests: [
+              T({
+                name: "Appearance & colour",
+                method: "Visual inspection",
+                kind: "choice",
+                opts: [
+                  M.app,
+                  "Abnormal / discoloured",
+                  "Precipitate / particulate",
+                  "Compromised seal",
+                ],
+                expect: M.app,
+              }),
+              T({
+                name: "Clarity / turbidity",
+                method: "Visual / nephelometry",
+                kind: "choice",
+                opts: ["Clear (no turbidity)", "Slight haze", "Turbid"],
+                expect: "Clear (no turbidity)",
+              }),
+              T({
+                name: "Fill volume",
+                method: "Graduated / gravimetric",
+                kind: "range",
+                unit: "mL",
+                lo: "",
+                hi: "",
+              }),
+              T({
+                name: "Container & closure integrity",
+                method: "Visual + leak test",
+                kind: "pass",
+              }),
+              T({
+                name: "Oxygen / growth indicator state",
+                method: "Visual vs reference",
+                kind: "choice",
+                opts: ["Expected (active)", "Deactivated / off-colour"],
+                expect: "Expected (active)",
+              }),
+              T({
+                name: "Cold-chain on receipt",
+                method: "Temp tag / gel-pack",
+                kind: "pass",
+              }),
+            ],
+          });
+          S.push({
+            cat: "Chemical",
+            tests: [
+              T({
+                name: "pH",
+                method: "Calibrated pH meter @ 25 °C",
+                kind: "range",
+                unit: "pH",
+                lo: "7.0",
+                hi: "7.4",
+              }),
+            ],
+          });
+          const micro = [
+            T({
+              name: "Uninoculated blank fluorescence",
+              method: "BacteScan baseline",
+              kind: "range",
+              unit: "RFU",
+              lo: "85",
+              hi: "118",
+            }),
+            ster(),
+          ];
+          (STRAIN_OF[key] || []).forEach((st) =>
+            micro.push(
+              T({
+                name: "Growth promotion — " + st + " (recovery Δ)",
+                method: "Inoculate ≤100 CFU · 24 h · BacteScan Δ",
+                kind: "min",
+                unit: "RFU",
+                lo: "200",
+              }),
+            ),
+          );
+          S.push({ cat: "Microbiological", tests: micro });
+        } else if (M.cat === "saline") {
+          S.push({
+            cat: "Physical",
+            tests: [
+              T({
+                name: "Appearance & colour",
+                method: "Visual",
+                kind: "choice",
+                opts: [M.app, "Cloudy / particulate", "Discoloured"],
+                expect: M.app,
+              }),
+              T({
+                name: "Fill volume",
+                method: "Graduated",
+                kind: "range",
+                unit: "mL",
+                lo: "",
+                hi: "",
+              }),
+              T({
+                name: "Container & closure integrity",
+                method: "Leak test",
+                kind: "pass",
+              }),
+            ],
+          });
+          S.push({
+            cat: "Chemical",
+            tests: [
+              T({
+                name: "pH",
+                method: "pH meter @ 25 °C",
+                kind: "range",
+                unit: "pH",
+                lo: "4.5",
+                hi: "7.0",
+              }),
+              T({
+                name: "Sodium chloride concentration",
+                method: "Titration / conductivity",
+                kind: "range",
+                unit: "% w/v",
+                lo: "0.85",
+                hi: "0.95",
+              }),
+            ],
+          });
+          S.push({ cat: "Microbiological", tests: [ster()] });
+        } else if (M.cat === "idx") {
+          S.push({
+            cat: "Physical",
+            tests: [
+              T({
+                name: "Appearance & colour",
+                method: "Visual",
+                kind: "choice",
+                opts: [M.app, "Abnormal / precipitate", "Compromised"],
+                expect: M.app,
+              }),
+              T({
+                name: "Fill volume",
+                method: "Graduated",
+                kind: "range",
+                unit: "mL",
+                lo: "",
+                hi: "",
+              }),
+              T({
+                name: "Container & closure integrity",
+                method: "Leak test",
+                kind: "pass",
+              }),
+            ],
+          });
+          S.push({
+            cat: "Chemical",
+            tests: [
+              T({
+                name: "pH",
+                method: "pH meter @ 25 °C",
+                kind: "range",
+                unit: "pH",
+                lo: "6.8",
+                hi: "7.6",
+              }),
+            ],
+          });
+          S.push({
+            cat: "Microbiological",
+            tests: [
+              ster(),
+              T({
+                name: "Growth support — E. coli ATCC 25922 (recovery Δ)",
+                method: "Inoculate ≤100 CFU · BacteScan Δ",
+                kind: "min",
+                unit: "RFU",
+                lo: "200",
+              }),
+            ],
+          });
+        } else if (M.cat === "reagent") {
+          S.push({
+            cat: "Physical",
+            tests: [
+              T({
+                name: "Appearance (pre-activation)",
+                method: "Visual",
+                kind: "choice",
+                opts: [
+                  M.app,
+                  "Discoloured / pre-reacted",
+                  "Precipitate present",
+                ],
+                expect: M.app,
+              }),
+              T({
+                name: "Fill volume",
+                method: "Graduated",
+                kind: "range",
+                unit: "mL",
+                lo: "48",
+                hi: "52",
+              }),
+              T({
+                name: "Container & closure integrity",
+                method: "Leak test",
+                kind: "pass",
+              }),
+            ],
+          });
+          S.push({
+            cat: "Chemical",
+            tests: [
+              T({
+                name: "pH",
+                method: "pH meter @ 25 °C",
+                kind: "range",
+                unit: "pH",
+                lo: "",
+                hi: "",
+              }),
+              T({
+                name: "Activation colour development",
+                method: "Reaction vs reference card",
+                kind: "choice",
+                opts: [
+                  "Develops expected colour",
+                  "No / weak development",
+                  "Off-target colour",
+                ],
+                expect: "Develops expected colour",
+              }),
+            ],
+          });
+          S.push({ cat: "Microbiological", tests: [ster()] });
+        } else if (M.cat === "strip") {
+          S.push({
+            cat: "Physical",
+            tests: [
+              T({
+                name: "Strip appearance & integrity",
+                method: "Visual",
+                kind: "choice",
+                opts: [
+                  "Intact, no damage",
+                  "Damaged / deformed",
+                  "Foil breach",
+                ],
+                expect: "Intact, no damage",
+              }),
+              T({
+                name: M.ind,
+                method: "Visual vs pouch label",
+                kind: "choice",
+                opts: ["Expected (per label)", "Off-colour / deactivated"],
+                expect: "Expected (per label)",
+              }),
+              T({
+                name: "Foil pouch / desiccant seal",
+                method: "Visual + seal test",
+                kind: "pass",
+              }),
+              T({
+                name: "Well count & integrity",
+                method: "Visual count",
+                kind: "choice",
+                opts: ["8 wells intact", "Missing / damaged well"],
+                expect: "8 wells intact",
+              }),
+            ],
+          });
+          S.push({
+            cat: "Chemical",
+            tests: [
+              T({
+                name: "Residual moisture",
+                method: "Karl Fischer / gravimetric",
+                kind: "max",
+                unit: "%",
+                hi: "3.0",
+              }),
+            ],
+          });
+          S.push({
+            cat: "Microbiological",
+            tests: [
+              T({
+                name: "Reaction pattern vs validated reference",
+                method: "CV imaging (IDIEX-CV-v1.0.2)",
+                kind: "choice",
+                opts: [
+                  "Matches reference profile",
+                  "Deviation / INVALID_PATTERN",
+                ],
+                expect: "Matches reference profile",
+              }),
+              T({
+                name: "ID / AST reproducibility (reference strain)",
+                method: "CLSI M100-Ed34 QC range",
+                kind: "choice",
+                opts: ["Within QC range", "Out of QC range"],
+                expect: "Within QC range",
+              }),
+            ],
+          });
+        }
+        return S;
+      }
+      /* generic panel for any production-hall product without a dedicated QC panel */
+      function genericPanel(name) {
+        const ster = () =>
+          T({
+            name: "Sterility (uninoculated control, 24 h @ 36 °C)",
+            method: "ISO 11133 / USP <71> incubation",
+            kind: "choice",
+            opts: ["Sterile — no growth", "Contaminated — growth observed"],
+            expect: "Sterile — no growth",
+          });
+        return [
+          {
+            cat: "Physical",
+            tests: [
+              T({
+                name: "Appearance & colour",
+                method: "Visual inspection vs specification",
+                kind: "choice",
+                opts: [
+                  "Conforms to specification",
+                  "Abnormal / discoloured",
+                  "Damaged / compromised",
+                ],
+                expect: "Conforms to specification",
+              }),
+              T({
+                name: "Dimensions / fill / count",
+                method: "Measurement vs spec",
+                kind: "range",
+                unit: "",
+                lo: "",
+                hi: "",
+              }),
+              T({
+                name: "Container / closure / packaging integrity",
+                method: "Visual + leak / seal test",
+                kind: "pass",
+              }),
+              T({
+                name: "Labelling & identification",
+                method: "Visual vs approved artwork",
+                kind: "choice",
+                opts: ["Correct & legible", "Incorrect / illegible"],
+                expect: "Correct & legible",
+              }),
+            ],
+          },
+          {
+            cat: "Chemical",
+            tests: [
+              T({
+                name: "Identity / composition check",
+                method: "Per product specification",
+                kind: "choice",
+                opts: ["Conforms", "Does not conform"],
+                expect: "Conforms",
+              }),
+            ],
+          },
+          { cat: "Microbiological", tests: [ster()] },
+        ];
+      }
+
+      /* ---- persistence (local QC records + locally registered batches) ---- */
+      const Store = (() => {
+        let mem = {},
+          ok = false;
+        try {
+          const k = "__m";
+          localStorage.setItem(k, "1");
+          localStorage.removeItem(k);
+          ok = true;
+        } catch (e) {}
+        return {
+          available: ok,
+          get(k, d) {
+            try {
+              if (ok) {
+                const v = localStorage.getItem(k);
+                return v ? JSON.parse(v) : d;
+              }
+            } catch (e) {}
+            return k in mem ? mem[k] : d;
+          },
+          set(k, v) {
+            try {
+              if (ok) {
+                localStorage.setItem(k, JSON.stringify(v));
+                return;
+              }
+            } catch (e) {}
+            mem[k] = v;
+          },
+        };
+      })();
+      const State = {
+        lots: Store.get("m_lots", []), // locally registered batches
+        records: Store.get("m_rec", []), // QC records (local)
+        qc: Store.get("m_qc", []), // fluorescence QC runs (local)
+        seq: Store.get("m_seq", 0),
+        products: [], // production-hall products (from Firestore)
+        batches: [], // production-hall batches (from Firestore)
+      };
+      function persist() {
+        Store.set("m_lots", State.lots);
+        Store.set("m_rec", State.records);
+        Store.set("m_qc", State.qc);
+        Store.set("m_seq", State.seq);
+      }
+
+      /* ---- helpers ---- */
+      const $ = (s, r = document) => r.querySelector(s);
+      const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+      const todayISO = () => new Date().toISOString().slice(0, 10);
+      function fmtDate(d) {
+        if (!d) return "—";
+        const dt = new Date(d);
+        if (isNaN(dt)) return String(d);
+        return dt.toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        });
+      }
+      function toast(m, k = "") {
+        const t = $("#toast");
+        t.className = "toast show " + k;
+        t.textContent = m;
+        clearTimeout(t._t);
+        t._t = setTimeout(() => (t.className = "toast " + k), 3200);
+      }
+      function matKeyByName(n) {
+        return Object.keys(MATERIALS).find((k) => MATERIALS[k].name === n);
+      }
+      function titleCase(s) {
+        s = (s || "").toString().trim();
+        if (!s) return "";
+        return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+      }
+      function pick(o, keys) {
+        if (!o) return undefined;
+        const pools = [o, o.fieldValues || {}, o.customFields || {}];
+        for (const pool of pools) {
+          for (const k of keys || []) {
+            if (pool[k] != null && pool[k] !== "") return pool[k];
+          }
+        }
+        // Last-resort fuzzy match for dynamic batch forms such as
+        // fieldValues: { "Expiry date": "2026-12-31" }
+        for (const pool of pools) {
+          const entries = Object.entries(pool || {});
+          for (const k of keys || []) {
+            const wanted = String(k)
+              .toLowerCase()
+              .replace(/[^a-z0-9]/g, "");
+            const hit = entries.find(([ek, ev]) => {
+              const key = String(ek)
+                .toLowerCase()
+                .replace(/[^a-z0-9]/g, "");
+              return (
+                ev != null &&
+                ev !== "" &&
+                (key === wanted || key.includes(wanted))
+              );
+            });
+            if (hit) return hit[1];
+          }
+        }
+        return undefined;
+      }
+      function normalizeCategory(value, fallback) {
+        const raw = String(value || fallback || "").toLowerCase();
+        if (/consum/.test(raw)) return "Consumable";
+        if (/primary|first/.test(raw)) return "Primary";
+        if (/secondary|second/.test(raw)) return "Secondary";
+        if (/tertiary|third|finished/.test(raw)) return "Tertiary";
+        return titleCase(value || fallback || "Other");
+      }
+      function collectionForCategory(category) {
+        const c = normalizeCategory(category);
+        if (c === "Consumable") return "consumables";
+        if (c === "Primary") return "primaryProducts";
+        if (c === "Secondary") return "secondaryProducts";
+        if (c === "Tertiary") return "tertiaryProducts";
+        return "products";
+      }
+      function makeProductUid(collectionName, docId) {
+        return `${collectionName || "products"}/${docId}`;
+      }
+      function numberOrBlank(v) {
+        const n = parseFloat(v);
+        return Number.isFinite(n) ? n : "";
+      }
+      function normalizeQualityStatus(raw, source) {
+        const s = String(raw || "").toLowerCase();
+        const blocked = !!(
+          source &&
+          (source.saleBlocked || source.qcBlocked || source.releaseBlocked)
+        );
+        if (
+          /accept|accepted|released|release|conform|pass/.test(s) &&
+          !/non[- ]?conform|reject|quarant|block|fail/.test(s)
+        )
+          return "accepted";
+        if (
+          /reject|rejected|quarant|quarantine|hold|ncr|non[- ]?conform|block|blocked|fail|failed/.test(
+            s,
+          ) ||
+          blocked
+        )
+          return "rejected";
+        if (/pending|review|incomplete|open|waiting/.test(s)) return "pending";
+        return "";
+      }
+      function readQualityStatus(data) {
+        const raw = pick(data, [
+          "qualityStatus",
+          "qcStatus",
+          "releaseStatus",
+          "saleStatus",
+          "qcDisposition",
+          "disposition",
+          "status",
+          "state",
+        ]);
+        return normalizeQualityStatus(raw, data);
+      }
+      function makeSafeDocId(s) {
+        return (
+          String(s || "batch")
+            .replace(/[\/#[\]?*]/g, "_")
+            .replace(/[^A-Za-z0-9_.-]/g, "_")
+            .slice(0, 140) || "batch"
+        );
+      }
+      function toDate(v) {
+        if (v == null || v === "") return "";
+        if (typeof v === "object") {
+          if (typeof v.toDate === "function") {
+            try {
+              return v.toDate().toISOString().slice(0, 10);
+            } catch (e) {}
+          }
+          if (v.seconds != null)
+            return new Date(v.seconds * 1000).toISOString().slice(0, 10);
+        }
+        const d = new Date(v);
+        return isNaN(d) ? String(v) : d.toISOString().slice(0, 10);
+      }
+      function lotStatus(l) {
+        const qs =
+          l.qualityStatus || normalizeQualityStatus(l.statusRaw, l.raw || l);
+        if (qs === "rejected" || l.insp === "fail")
+          return { label: "Rejected / blocked", cls: "p-red", ok: false };
+        if (qs === "accepted")
+          return { label: "Accepted / released", cls: "p-green", ok: true };
+        if (qs === "pending")
+          return { label: "Pending QC", cls: "p-amber", ok: true };
+        const today = new Date(todayISO());
+        if (l.exp && new Date(l.exp) < today)
+          return { label: "Expired", cls: "p-red", ok: false };
+        if (l.exp) {
+          const d = (new Date(l.exp) - today) / 864e5;
+          if (d < 30)
+            return { label: "Expiring <30d", cls: "p-amber", ok: true };
+        }
+        return { label: "Not released yet", cls: "p-amber", ok: true };
+      }
+
+      /* ---- test evaluation ---- */
+      function evalTest(t) {
+        if (t.kind === "choice") {
+          if (!t.result) return "—";
+          return t.result === t.expect ? "Pass" : "Fail";
+        }
+        if (t.kind === "pass") {
+          if (!t.result) return "—";
+          return t.result;
+        }
+        const v = parseFloat(t.result);
+        if (isNaN(v)) return "—";
+        if (t.kind === "range") {
+          if (t.lo === "" || t.hi === "" || t.lo == null || t.hi == null)
+            return "—";
+          return v >= +t.lo && v <= +t.hi ? "Pass" : "Fail";
+        }
+        if (t.kind === "min") {
+          if (t.lo === "" || t.lo == null) return "—";
+          return v >= +t.lo ? "Pass" : "Fail";
+        }
+        if (t.kind === "max") {
+          if (t.hi === "" || t.hi == null) return "—";
+          return v <= +t.hi ? "Pass" : "Fail";
+        }
+        return "—";
+      }
+      function specText(t) {
+        if (t.kind === "choice") return t.expect;
+        if (t.kind === "pass") return "Pass (no defect)";
+        if (t.kind === "range")
+          return t.lo !== "" && t.hi !== ""
+            ? `${t.lo} – ${t.hi} ${t.unit || ""}`
+            : "set range";
+        if (t.kind === "min")
+          return t.lo !== "" ? `≥ ${t.lo} ${t.unit || ""}` : "set min";
+        if (t.kind === "max")
+          return t.hi !== "" ? `≤ ${t.hi} ${t.unit || ""}` : "set max";
+      }
+      function vpill(v) {
+        return v === "Pass"
+          ? '<span class="pill p-green">Pass</span>'
+          : v === "Fail"
+            ? '<span class="pill p-red">Fail</span>'
+            : '<span class="tiny-mono">—</span>';
+      }
+
+      /* ============================================================ Firebase / Firestore */
+      const FB = { enabled: false, db: null };
+      function setLED(state, text) {
+        const led = $("#led");
+        led.className =
+          "led " +
+          (state === "ok" ? "green" : state === "warn" ? "amber" : "red");
+        $("#led-text").textContent = text;
+      }
+      const DB = {
+        async init() {
+          const cfgMissing =
+            !FIREBASE_CONFIG.apiKey ||
+            /^PASTE/i.test(FIREBASE_CONFIG.apiKey) ||
+            /^PASTE/i.test(FIREBASE_CONFIG.projectId);
+          if (cfgMissing) {
+            FB.enabled = false;
+            setLED("warn", "Local mode — Firebase not configured");
+            return;
+          }
+          try {
+            if (typeof firebase === "undefined")
+              throw new Error("Firebase SDK not loaded");
+            if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+            FB.db = firebase.firestore();
+            FB.enabled = true;
+            setLED("ok", "Firebase connected");
+            await DB.load();
+          } catch (e) {
+            console.error("Firebase init failed:", e);
+            FB.enabled = false;
+            setLED("err", "Firebase error — local mode");
+            toast("Firebase connection failed — running in local mode.", "err");
+          }
+        },
+        async load() {
+          if (!FB.enabled) return;
+          try {
+            const productCollections = DBCFG.productCollections || [];
+            const productGroups = await Promise.all(
+              productCollections.map(async (cfg) => {
+                const snap = await FB.db.collection(cfg.name).get();
+                return snap.docs.map((d) =>
+                  normProduct(d.id, d.data(), cfg.category, cfg.name),
+                );
+              }),
+            );
+            State.products = productGroups.flat().sort((a, b) => {
+              const ia = CATEGORY_ORDER.indexOf(a.category);
+              const ib = CATEGORY_ORDER.indexOf(b.category);
+              return (
+                (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) ||
+                a.name.localeCompare(b.name, undefined, { numeric: true })
+              );
+            });
+
+            let bsnap;
+            if (DBCFG.batchesCollectionGroup)
+              bsnap = await FB.db
+                .collectionGroup(DBCFG.batchesCollection)
+                .get();
+            else bsnap = await FB.db.collection(DBCFG.batchesCollection).get();
+
+            const registeredBatches = bsnap.docs.map((d) =>
+              normBatch(d.id, d.data()),
+            );
+            const stockBatches = State.products.flatMap(productStockBatches);
+            State.batches = dedupeBatches(
+              registeredBatches.concat(stockBatches),
+            );
+            toast(
+              `Loaded ${State.products.length} classified products · ${State.batches.length} batches from Firebase.`,
+              "ok",
+            );
+          } catch (e) {
+            console.error("Firestore load failed:", e);
+            toast(
+              "Could not read Production Hall collections — check Firestore rules/config. See console.",
+              "err",
+            );
+          }
+        },
+        async reload() {
+          if (!FB.enabled) {
+            toast("Firebase not configured — nothing to refresh.", "err");
+            return;
+          }
+          await DB.load();
+          setProductDropdowns();
+          App.renderLots();
+          App.renderDash();
+          if ($("#view-test").classList.contains("active"))
+            Picker.renderMaterials("");
+        },
+      };
+
+      function qcStatusFromMode(mode) {
+        if (mode === "Released") return "accepted";
+        if (mode === "Quarantined") return "rejected";
+        return "pending";
+      }
+      function qcGuardPayload(status, record, useServerTimestamp) {
+        const accepted = status === "accepted";
+        const rejected = status === "rejected";
+        const ts =
+          useServerTimestamp && FB.enabled
+            ? firebase.firestore.FieldValue.serverTimestamp()
+            : new Date();
+        return {
+          qualityStatus: status,
+          qcStatus: status,
+          qcDisposition: accepted
+            ? "Released"
+            : rejected
+              ? "Quarantined"
+              : "Pending QC",
+          releaseStatus: accepted
+            ? "released"
+            : rejected
+              ? "blocked"
+              : "pending",
+          saleStatus: accepted ? "released" : rejected ? "blocked" : "pending",
+          canRelease: accepted,
+          canSell: accepted,
+          isReleased: accepted,
+          releaseBlocked: !accepted,
+          saleBlocked: !accepted,
+          qcBlocked: rejected,
+          rejectionReport: rejected
+            ? record.note ||
+              `QC record ${record.id}: batch rejected / quarantined.`
+            : null,
+          qcRecordId: record.id,
+          qcVerdict: record.verdict,
+          qcPass: record.pass,
+          qcFail: record.fail,
+          qcAnalyst: record.analyst || "",
+          qualityUpdatedAt: ts,
+          updatedAt: ts,
+          acceptedAt: accepted ? ts : null,
+          rejectedAt: rejected ? ts : null,
+        };
+      }
+      function batchDocIdForSync(product, batch) {
+        if (batch.sourceKind === "batch-register" && batch.firestoreId)
+          return batch.firestoreId;
+        if (batch.firestoreId) return batch.firestoreId;
+        return makeSafeDocId(
+          `${product.collectionName}_${product.firestoreId}_${batch.lot}`,
+        );
+      }
+      function stockEntryMatchesBatch(entry, batch) {
+        const lot = String(
+          entry.batchNumber || entry.lot || entry.lotCode || entry.number || "",
+        )
+          .trim()
+          .toLowerCase();
+        const bid = String(entry.batchId || entry.id || "").trim();
+        return (
+          (batch.firestoreId && bid && bid === String(batch.firestoreId)) ||
+          (batch.lot && lot && lot === String(batch.lot).trim().toLowerCase())
+        );
+      }
+      async function syncProductBatchDisposition(
+        product,
+        batch,
+        status,
+        record,
+      ) {
+        if (!product || !product.collectionName || !product.firestoreId) return;
+        const productRef = FB.db
+          .collection(product.collectionName)
+          .doc(product.firestoreId);
+        const snap = await productRef.get();
+        if (!snap.exists) return;
+        const pdata = snap.data() || {};
+        const baseUpdate = {
+          lastQCStatus: status,
+          lastQualityStatus: status,
+          lastQCDisposition:
+            status === "accepted"
+              ? "Released"
+              : status === "rejected"
+                ? "Quarantined"
+                : "Pending QC",
+          lastQCRecordId: record.id,
+          lastQCBatchNumber: batch.lot || "",
+          lastQCUpdatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        };
+        const rows = Array.isArray(pdata.batchStock) ? pdata.batchStock : null;
+        if (rows && rows.length) {
+          let matched = false;
+          const guard = qcGuardPayload(status, record, false);
+          const batchStock = rows.map((entry) => {
+            if (!stockEntryMatchesBatch(entry, batch)) return entry;
+            matched = true;
+            return {
+              ...entry,
+              ...guard,
+              batchNumber: entry.batchNumber || batch.lot || entry.lot || null,
+            };
+          });
+          if (matched) {
+            await productRef.update({ ...baseUpdate, batchStock });
+            return;
+          }
+        }
+
+        // Older product records may not have batchStock. In that case write the
+        // guard on the product document so sales/release screens still block it.
+        await productRef.update({
+          ...baseUpdate,
+          ...qcGuardPayload(status, record, true),
+        });
+      }
+      async function syncRecordToFirestore(record, mode, product, batch) {
+        if (!FB.enabled) return;
+        if (!product || !batch)
+          throw new Error(
+            "Missing selected product or batch for Firestore sync.",
+          );
+        const status = qcStatusFromMode(mode);
+        const batchId = batchDocIdForSync(product, batch);
+        const batchRef = FB.db.collection(DBCFG.batchesCollection).doc(batchId);
+        const payload = {
+          ...qcGuardPayload(status, record, true),
+          batchNumber: batch.lot || record.lot || batchId,
+          lot: batch.lot || record.lot || batchId,
+          itemId: product.firestoreId,
+          itemName: product.name,
+          itemType: product.category,
+          ref: record.ref || product.ref || batch.ref || "",
+          mfg: record.mfg || batch.mfg || "",
+          exp: record.exp || batch.exp || "",
+          qcSource: "html-material-qc",
+          sourceKind: batch.sourceKind || "",
+          formTemplateName: "Consumable Material QC & Release Testing",
+        };
+        await batchRef.set(payload, { merge: true });
+        await syncProductBatchDisposition(product, batch, status, record);
+        await DB.load();
+      }
+
+      function normProduct(id, data, forcedCategory, sourceCollection) {
+        const category = normalizeCategory(
+          pick(data, DBCFG.product.category),
+          forcedCategory,
+        );
+        const collectionName =
+          sourceCollection || collectionForCategory(category);
+        const name = pick(data, DBCFG.product.name) || id;
+        return {
+          id: makeProductUid(collectionName, id),
+          firestoreId: id,
+          collectionName,
+          name,
+          category,
+          ref: pick(data, DBCFG.product.ref) || "",
+          panelType: pick(data, DBCFG.product.panelType) || "",
+          quantity: numberOrBlank(pick(data, DBCFG.product.quantity)),
+          raw: data,
+        };
+      }
+      function normBatch(id, data) {
+        const category = normalizeCategory(pick(data, DBCFG.batch.type), "");
+        const productId = pick(data, DBCFG.batch.product) || null;
+        const collectionName = category
+          ? collectionForCategory(category)
+          : null;
+        const statusRaw = (pick(data, DBCFG.batch.status) || "")
+          .toString()
+          .toLowerCase();
+        const qualityStatus = readQualityStatus(data);
+        const insp =
+          qualityStatus === "rejected" ||
+          /fail|reject|rejected|quarant|hold|ncr|non[- ]?conform|block/.test(
+            statusRaw,
+          )
+            ? "fail"
+            : "pass";
+        return {
+          id: `batches/${id}`,
+          firestoreId: id,
+          source: "hall",
+          sourceKind: "batch-register",
+          productId,
+          productUid:
+            productId && collectionName
+              ? makeProductUid(collectionName, productId)
+              : null,
+          productCategory: category || "",
+          productName: pick(data, DBCFG.batch.productName) || productId || "—",
+          ref: pick(data, DBCFG.batch.ref) || "",
+          lot: pick(data, DBCFG.batch.lot) || id,
+          mfg: toDate(pick(data, DBCFG.batch.mfg)),
+          exp: toDate(pick(data, DBCFG.batch.exp)),
+          insp,
+          qualityStatus,
+          statusRaw,
+          saleBlocked: !!data.saleBlocked,
+          canSell: data.canSell,
+          rejectionReport: data.rejectionReport || "",
+          raw: data,
+        };
+      }
+      function productStockBatches(product) {
+        const rows = Array.isArray(product.raw?.batchStock)
+          ? product.raw.batchStock
+          : [];
+        return rows
+          .map((entry, index) => {
+            const qty = numberOrBlank(
+              entry.quantity ?? entry.availableUnits ?? entry.availableQuantity,
+            );
+            const lot =
+              entry.batchNumber ||
+              entry.lot ||
+              entry.lotCode ||
+              entry.number ||
+              `Stock batch ${index + 1}`;
+            return {
+              id: `${product.id}/batchStock/${entry.batchId || lot || index}`,
+              firestoreId: entry.batchId || "",
+              source: "hall",
+              sourceKind: "product-batchStock",
+              productId: product.firestoreId,
+              productUid: product.id,
+              productCategory: product.category,
+              productName: product.name,
+              ref: product.ref || entry.ref || "",
+              lot,
+              mfg: toDate(
+                entry.mfg ||
+                  entry.manufactureDate ||
+                  entry.mfgDate ||
+                  entry.productionDate ||
+                  entry.createdAt,
+              ),
+              exp: toDate(
+                entry.exp ||
+                  entry.expiry ||
+                  entry.expiryDate ||
+                  entry.expDate ||
+                  entry.expiresOn,
+              ),
+              insp: readQualityStatus(entry) === "rejected" ? "fail" : "pass",
+              qualityStatus: readQualityStatus(entry),
+              statusRaw: String(
+                entry.qualityStatus ||
+                  entry.qcStatus ||
+                  entry.releaseStatus ||
+                  entry.saleStatus ||
+                  entry.status ||
+                  "",
+              ).toLowerCase(),
+              saleBlocked: !!entry.saleBlocked,
+              canSell: entry.canSell,
+              rejectionReport: entry.rejectionReport || "",
+              quantity: qty,
+              raw: entry,
+            };
+          })
+          .filter((b) => b.lot && b.lot !== "Manual / Unassigned");
+      }
+      function dedupeBatches(rows) {
+        const seen = new Map();
+        rows.forEach((b) => {
+          const key =
+            `${b.productUid || b.productId || b.productName}::${b.lot}`.toLowerCase();
+          if (!seen.has(key)) seen.set(key, b);
+        });
+        return Array.from(seen.values()).sort(
+          (a, b) =>
+            String(
+              b.raw?.createdAt?.seconds || b.raw?.updatedAt?.seconds || "",
+            ).localeCompare(
+              String(
+                a.raw?.createdAt?.seconds || a.raw?.updatedAt?.seconds || "",
+              ),
+            ) ||
+            String(a.productName || "").localeCompare(
+              String(b.productName || ""),
+              undefined,
+              { numeric: true },
+            ) ||
+            String(a.lot || "").localeCompare(String(b.lot || ""), undefined, {
+              numeric: true,
+            }),
+        );
+      }
+
+      /* ============================================================ Data facade (Firebase or local) */
+      const Data = {
+        products() {
+          if (FB.enabled && State.products.length)
+            return State.products.slice();
+          // local fallback: static materials, all under "Consumable"
+          return Object.keys(MATERIALS).map((k) => ({
+            id: k,
+            firestoreId: k,
+            collectionName: "localMaterials",
+            name: MATERIALS[k].name,
+            category: "Consumable",
+            panelType: k,
+            ref: "",
+            quantity: "",
+            raw: {},
+          }));
+        },
+        localBatches() {
+          return State.lots.map((l, i) => ({
+            id: "local-" + i,
+            localIndex: i,
+            source: "local",
+            sourceKind: "local-register",
+            productId: l.productId || matKeyByName(l.type) || null,
+            productUid: l.productId || matKeyByName(l.type) || null,
+            productName: l.type,
+            ref: l.ref,
+            lot: l.lot,
+            mfg: l.mfg,
+            exp: l.exp,
+            insp: l.insp,
+          }));
+        },
+        batches() {
+          const local = Data.localBatches();
+          return FB.enabled ? State.batches.concat(local) : local;
+        },
+        batchesForProduct(p) {
+          if (!p) return [];
+          const pname = String(p.name || "").toLowerCase();
+          return Data.batches().filter((b) => {
+            const sameUid =
+              b.productUid && String(b.productUid) === String(p.id);
+            const sameDoc =
+              b.productId != null &&
+              p.firestoreId != null &&
+              String(b.productId) === String(p.firestoreId) &&
+              (!b.productCategory || b.productCategory === p.category);
+            const sameName =
+              b.productName &&
+              pname &&
+              String(b.productName).toLowerCase() === pname;
+            return sameUid || sameDoc || sameName;
+          });
+        },
+      };
+      function setProductDropdowns() {
+        // lot-modal material select
+        $("#lm-type").innerHTML =
+          Data.products()
+            .map((p) => `<option value="${p.id}">${p.name}</option>`)
+            .join("") || '<option value="">— no products —</option>';
+      }
+
+      /* ============================================================ App */
+      const App = {
+        go(v) {
+          $$(".nav-item").forEach((b) =>
+            b.classList.toggle("active", b.dataset.view === v),
+          );
+          $$(".view").forEach((s) =>
+            s.classList.toggle("active", s.id === "view-" + v),
+          );
+          (
+            ({
+              dashboard: App.renderDash,
+              lots: App.renderLots,
+              qc: QC.render,
+              reports: App.renderReports,
+              protocols: App.renderProtocols,
+              strains: App.renderStrains,
+              test: Test.init,
+            })[v] || (() => {})
+          )();
+          window.scrollTo(0, 0);
+        },
+        async init() {
+          $$(".nav-item").forEach(
+            (b) => (b.onclick = () => App.go(b.dataset.view)),
+          );
+          await DB.init();
+          $("#data-mode").textContent = FB.enabled
+            ? "Firebase: production-hall project"
+            : Store.available
+              ? "Local persistence ON"
+              : "Session-only storage";
+          setProductDropdowns();
+          App.renderDash();
+        },
+        renderDash() {
+          const r = State.records;
+          $("#k-tested").textContent = r.length;
+          $("#k-pass").textContent = r.filter(
+            (x) => x.status === "Released",
+          ).length;
+          $("#k-fail").textContent = r.filter(
+            (x) => x.status === "Quarantined",
+          ).length;
+          $("#k-open").textContent = r.filter(
+            (x) => x.status === "Pending",
+          ).length;
+          const last = State.qc[State.qc.length - 1];
+          $("#ds-qc").innerHTML =
+            !last || last.pass
+              ? '<span class="dot ok"></span>Within ±2 SD'
+              : '<span class="dot err"></span>QC_LOCKOUT';
+          const groups = {};
+          r.forEach((x) => {
+            groups[x.matName] = groups[x.matName] || { p: 0, f: 0 };
+            x.status === "Released"
+              ? groups[x.matName].p++
+              : x.status === "Quarantined" && groups[x.matName].f++;
+          });
+          const gk = Object.keys(groups);
+          $("#bymat").innerHTML = gk.length
+            ? gk
+                .map((k) => {
+                  const g = groups[k],
+                    tot = g.p + g.f || 1;
+                  return `
+      <div style="margin-bottom:11px"><div class="flex-between" style="margin-bottom:5px"><span style="font-size:12.5px">${k}</span>
+        <span class="tiny-mono">${g.p}✓ / ${g.f}✕</span></div>
+        <div style="height:7px;background:var(--line-2);border-radius:5px;overflow:hidden"><div style="height:100%;width:${(g.p / tot) * 100}%;background:var(--green)"></div></div></div>`;
+                })
+                .join("")
+            : '<div class="empty">No batches tested yet.</div>';
+          const rec = r.slice(-6).reverse();
+          $("#recent-body").innerHTML = rec.length
+            ? rec
+                .map(
+                  (
+                    x,
+                  ) => `<tr><td class="mono">${x.id}</td><td>${x.matName}</td><td class="mono">${x.lot}</td>
+      <td class="mono">${x.pass}/${x.fail}</td><td>${verdictPill(x.verdict)}</td><td>${statusPill(x.status)}</td><td>${x.analyst || "—"}</td></tr>`,
+                )
+                .join("")
+            : `<tr><td colspan="7" class="empty">No records — run a material test or load sample data.</td></tr>`;
+        },
+        renderLots() {
+          const b = $("#lots-body");
+          const allRows = Data.batches();
+          const qEl = $("#lots-search");
+          const q = qEl ? qEl.value.trim().toLowerCase() : "";
+          const rows = q
+            ? allRows.filter((l) => {
+                const s = lotStatus(l);
+                const searchable = [
+                  l.productName,
+                  l.ref,
+                  l.lot,
+                  l.productId,
+                  l.productUid,
+                  l.productCategory,
+                  l.sourceKind,
+                  l.source === "hall" ? "production hall" : "local",
+                  l.insp === "pass" ? "passed" : "failed",
+                  s.label,
+                  fmtDate(l.mfg),
+                  fmtDate(l.exp),
+                ]
+                  .filter((x) => x != null && x !== "")
+                  .join(" ")
+                  .toLowerCase();
+                return searchable.includes(q);
+              })
+            : allRows;
+          $("#lots-count").textContent =
+            `${rows.length} of ${allRows.length} batches` +
+            (q ? " · filtered" : "") +
+            (FB.enabled ? " · live from Firebase" : "");
+          if (!allRows.length) {
+            b.innerHTML = `<tr><td colspan="9" class="empty">No batches. ${FB.enabled ? "Check your Firestore collection/field names in DBCFG." : "Register a batch or load sample data."}</td></tr>`;
+            return;
+          }
+          if (!rows.length) {
+            b.innerHTML = `<tr><td colspan="9" class="empty">No matching batches for “${qEl ? qEl.value.trim() : ""}”. Try material name, REF, lot/batch number, classification, status, or source.</td></tr>`;
+            return;
+          }
+          b.innerHTML = rows
+            .map((l) => {
+              const s = lotStatus(l);
+              const src =
+                l.source === "hall"
+                  ? '<span class="pill p-teal">Production hall</span>'
+                  : '<span class="pill p-grey">Local</span>';
+              const remove =
+                l.source === "local"
+                  ? `<button class="btn btn-ghost btn-sm" onclick="App.delLot(${l.localIndex})">Remove</button>`
+                  : "";
+              return `<tr><td>${l.productName || "—"}</td><td class="mono">${l.ref || "—"}</td><td class="mono">${l.lot}</td>
+      <td>${fmtDate(l.mfg)}</td><td>${fmtDate(l.exp)}</td><td>${l.insp === "pass" ? '<span class="pill p-green">Passed</span>' : '<span class="pill p-red">Failed</span>'}</td>
+      <td><span class="pill ${s.cls}">${s.label}</span></td><td>${src}</td><td>${remove}</td></tr>`;
+            })
+            .join("");
+        },
+        clearLotSearch() {
+          const qEl = $("#lots-search");
+          if (qEl) qEl.value = "";
+          App.renderLots();
+        },
+        openLotModal() {
+          setProductDropdowns();
+          $("#lot-modal").classList.add("show");
+          ["lm-ref", "lm-lot", "lm-exp", "lm-mfg"].forEach(
+            (id) => ($("#" + id).value = ""),
+          );
+        },
+        closeLotModal() {
+          $("#lot-modal").classList.remove("show");
+        },
+        saveLot() {
+          const lot = $("#lm-lot").value.trim(),
+            exp = $("#lm-exp").value;
+          if (!lot || !exp) {
+            toast("Lot code and expiry required.", "err");
+            return;
+          }
+          const pid = $("#lm-type").value;
+          const p = Data.products().find((x) => String(x.id) === String(pid));
+          State.lots.push({
+            type: p ? p.name : pid,
+            productId: pid,
+            ref: $("#lm-ref").value.trim() || (p ? p.ref : ""),
+            lot,
+            mfg: $("#lm-mfg").value,
+            exp,
+            insp: $("#lm-insp").value,
+          });
+          persist();
+          App.closeLotModal();
+          App.renderLots();
+          toast("Batch registered (local).", "ok");
+        },
+        delLot(i) {
+          State.lots.splice(i, 1);
+          persist();
+          App.renderLots();
+        },
+        renderReports() {
+          const b = $("#reports-body");
+          $("#rep-count").textContent = State.records.length + " records";
+          if (!State.records.length) {
+            b.innerHTML = `<tr><td colspan="8" class="empty">No records.</td></tr>`;
+            return;
+          }
+          b.innerHTML = State.records
+            .slice()
+            .reverse()
+            .map((x) => {
+              const i = State.records.indexOf(x);
+              return `<tr><td class="mono">${x.id}</td><td>${x.matName}</td><td class="mono">${x.lot}</td><td class="mono">${x.pass}/${x.fail}</td>
+      <td>${verdictPill(x.verdict)}</td><td>${statusPill(x.status)}</td><td>${fmtDate(x.date)}</td>
+      <td><button class="btn btn-primary btn-sm" onclick="CoA.generate(${i})">CoA</button></td></tr>`;
+            })
+            .join("");
+        },
+        renderStrains() {
+          $("#strains-body").innerHTML = STRAINS.map(
+            (s) =>
+              `<tr><td style="font-style:italic">${s[0]}</td><td class="mono">${s[1]}</td><td>${s[2]}</td><td class="sub-note">${s[3]}</td></tr>`,
+          ).join("");
+        },
+        renderProtocols() {
+          $("#trouble-body").innerHTML = [
+            [
+              "Bottle not reading",
+              "Dirty bottle surface",
+              "Re-clean with 70% alcohol & lint-free tissue, air-dry, rescan",
+            ],
+            [
+              "Strip reading error",
+              "Insufficient sample",
+              "Repeat with correct 165 µL volume",
+            ],
+            [
+              "Blank RFU out of 85–118",
+              "Lot drift / sensor / damage",
+              "Wipe & rescan; if persists quarantine bottle; >5% of lot → investigation",
+            ],
+            [
+              "No recovery on growth promotion",
+              "Medium failure / low inoculum",
+              "Re-test with fresh ≤100 CFU inoculum; if persists, fail batch",
+            ],
+            [
+              "Reagent no colour change",
+              "Reagent degraded / expired",
+              "Quarantine lot; check storage & expiry",
+            ],
+            [
+              "Optical QC beyond ±2 SD",
+              "Optical-path contamination",
+              "QC_LOCKOUT — wipe path, re-run; persistent → service",
+            ],
+          ]
+            .map(
+              (r) =>
+                `<tr><td>${r[0]}</td><td class="sub-note">${r[1]}</td><td class="sub-note">${r[2]}</td></tr>`,
+            )
+            .join("");
+          $("#proto-list").innerHTML = [
+            [
+              "Batch passed incoming inspection",
+              "Cold-chain tag and gel packs intact; packaging undamaged (SOP §8, IFU §13.3).",
+            ],
+            ["Batch in-date", "Not expired; expiry ≥ testing date."],
+            [
+              "All panel tests recorded",
+              "Every physical, chemical and microbiological parameter has a result.",
+            ],
+            ["All results conform", "No Fail result across the three domains."],
+            [
+              "Instrument fluorescence QC within ±2 SD",
+              "No active QC_LOCKOUT before recovery/blank readings are trusted.",
+            ],
+            [
+              "QC officer authorisation",
+              "Release requires QC credential; name & timestamp embedded in the CoA and digest.",
+            ],
+          ]
+            .map(
+              ([
+                t,
+                d,
+              ]) => `<div style="display:flex;gap:11px;padding:11px 0;border-bottom:1px solid var(--line-2)">
+      <span style="color:var(--green);font-weight:700">✓</span><div><div style="font-weight:600;font-size:13px">${t}</div><div class="sub-note">${d}</div></div></div>`,
+            )
+            .join("");
+        },
+        seedDemo() {
+          if (!State.lots.length) {
+            const e = new Date();
+            e.setMonth(e.getMonth() + 9);
+            const ex = e.toISOString().slice(0, 10);
+            [
+              ["Gram Positive (GP) culture bottle", "MIR-GP", "GP-2602-001"],
+              ["Gram Negative (GN) culture bottle", "MIR-GN", "GN-2602-001"],
+              ["Saline diluent bottle", "MIR-SAL", "SAL-2602-001"],
+              ["Colorimetric reagent", "MIR-CR", "CR-2603-001"],
+              ["Biochemical strip — White (W)", "MIR-W", "W-2603-001"],
+            ].forEach(([t, r, l]) =>
+              State.lots.push({
+                type: t,
+                productId: matKeyByName(t),
+                ref: r,
+                lot: l,
+                mfg: "2026-02-01",
+                exp: ex,
+                insp: "pass",
+              }),
+            );
+          }
+          if (!State.qc.length) {
+            [99, 101, 98, 102, 100].forEach((v, i) => {
+              const d = new Date();
+              d.setDate(d.getDate() - (5 - i) * 7);
+              State.qc.push({
+                date: d.toISOString(),
+                a: v,
+                b: v + 1,
+                mean: v + 0.5,
+                mean0: 100,
+                sd: 4,
+                z: (v + 0.5 - 100) / 4,
+                pass: true,
+              });
+            });
+          }
+          if (!State.records.some((r) => r.demo)) {
+            State.records.push(
+              demoRec("GN", "GN-2602-001", "Conforms", "Released"),
+            );
+            State.records.push(
+              demoRec("CR", "CR-2603-001", "Non-conforming", "Quarantined"),
+            );
+          }
+          persist();
+          App.renderDash();
+          App.renderLots();
+          toast("Sample data loaded.", "ok");
+        },
+      };
+      function statusPill(s) {
+        return `<span class="pill ${{ Released: "p-green", Quarantined: "p-red", Pending: "p-amber" }[s] || "p-grey"}">${s}</span>`;
+      }
+      function verdictPill(v) {
+        return v === "Conforms"
+          ? '<span class="pill p-green">Conforms</span>'
+          : v === "Non-conforming"
+            ? '<span class="pill p-red">Non-conforming</span>'
+            : '<span class="pill p-amber">Incomplete</span>';
+      }
+      function demoRec(key, lot, verdict, status) {
+        State.seq++;
+        const panel = panelFor(key);
+        panel.forEach((sec) =>
+          sec.tests.forEach((t) => {
+            if (t.kind === "choice")
+              t.result =
+                verdict === "Conforms"
+                  ? t.expect
+                  : sec.cat === "Chemical" && t.opts.length > 1
+                    ? t.opts[1]
+                    : t.expect;
+            else if (t.kind === "pass") t.result = "Pass";
+            else if (t.kind === "range")
+              t.result = t.lo !== "" ? ((+t.lo + +t.hi) / 2).toFixed(1) : "10";
+            else if (t.kind === "min")
+              t.result = verdict === "Conforms" ? "260" : "120";
+            else if (t.kind === "max") t.result = "1.2";
+          }),
+        );
+        const { pass, fail } = tally(panel);
+        return {
+          demo: true,
+          id:
+            "QC-" +
+            todayISO().replace(/-/g, "") +
+            "-" +
+            String(State.seq).padStart(4, "0"),
+          matKey: key,
+          matName: MATERIALS[key].name,
+          lot,
+          ref: "MIR",
+          mfg: "2026-02-01",
+          exp: "2026-11-01",
+          analyst: "E. Zyada (QC Analyst)",
+          date: todayISO(),
+          panel,
+          verdict,
+          status,
+          pass,
+          fail,
+          note: "",
+          strains: STRAIN_OF[key] || [],
+          auth: status === "Released" ? "E. Zyada (QC Analyst)" : "",
+          sw: "v1.0.3",
+          cv: "IDIEX-CV-v1.0.2",
+          serial: "IDX-PROD-2026-0001",
+        };
+      }
+      function tally(panel) {
+        let pass = 0,
+          fail = 0;
+        panel.forEach((s) =>
+          s.tests.forEach((t) => {
+            const v = evalTest(t);
+            if (v === "Pass") pass++;
+            else if (v === "Fail") fail++;
+          }),
+        );
+        return { pass, fail };
+      }
+
+      /* ============================================================ Searchable comboboxes (material + batch) */
+      function resolvePanelType(p) {
+        if (p.panelType && MATERIALS[p.panelType]) return p.panelType;
+        const n = (p.name || "").toLowerCase();
+        const map = [
+          ["gram positive", "GP"],
+          ["gram-positive", "GP"],
+          ["gram negative", "GN"],
+          ["gram-negative", "GN"],
+          ["staph", "STA"],
+          ["strep", "STR"],
+          ["pseudomonas", "PSE"],
+          ["salmonella", "SAL"],
+          ["saline", "SALINE"],
+          ["idiex", "IDX"],
+          ["colorimetric", "CR"],
+          ["reagent", "CR"],
+          ["strip", "SW"],
+        ];
+        for (const [kw, key] of map) {
+          if (n.includes(kw)) return key;
+        }
+        return "__generic__";
+      }
+      const Picker = {
+        selProduct: null,
+        init() {
+          const ms = $("#mat-search"),
+            ls = $("#lot-search");
+          ms.oninput = () => {
+            Picker.renderMaterials(ms.value);
+            Picker.show("mat-list");
+          };
+          ms.onfocus = () => {
+            Picker.renderMaterials(ms.value);
+            Picker.show("mat-list");
+          };
+          ls.oninput = () => {
+            Picker.renderBatches(ls.value);
+            Picker.show("lot-list");
+          };
+          ls.onfocus = () => {
+            if (!ls.disabled) {
+              Picker.renderBatches(ls.value);
+              Picker.show("lot-list");
+            }
+          };
+        },
+        reset() {
+          Picker.selProduct = null;
+          $("#mat-search").value = "";
+          $("#t-mat").value = "";
+          $("#lot-search").value = "";
+          $("#t-lot").value = "";
+          $("#lot-search").disabled = true;
+          $("#lot-search").placeholder = "Select a product first…";
+          $("#mat-list").classList.remove("show");
+          $("#lot-list").classList.remove("show");
+        },
+        show(id) {
+          $("#mat-list").classList.toggle("show", id === "mat-list");
+          $("#lot-list").classList.toggle("show", id === "lot-list");
+        },
+        hideAll() {
+          $("#mat-list").classList.remove("show");
+          $("#lot-list").classList.remove("show");
+        },
+        renderMaterials(filter) {
+          const f = (filter || "").toLowerCase().trim();
+          const prods = Data.products().filter(
+            (p) =>
+              !f ||
+              p.name.toLowerCase().includes(f) ||
+              (p.ref && p.ref.toLowerCase().includes(f)) ||
+              (p.category && p.category.toLowerCase().includes(f)),
+          );
+          // group by category, ordered
+          const groups = {};
+          prods.forEach((p) => {
+            (groups[p.category] = groups[p.category] || []).push(p);
+          });
+          const cats = Object.keys(groups).sort((a, b) => {
+            const ia = CATEGORY_ORDER.indexOf(a),
+              ib = CATEGORY_ORDER.indexOf(b);
+            return (
+              (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b)
+            );
+          });
+          let html = "";
+          if (!prods.length) {
+            html = `<div class="combo-empty">No products${f ? ` matching “${filter}”` : ""}.${FB.enabled ? "" : " (Local mode — configure Firebase to see production-hall products.)"}</div>`;
+          } else
+            cats.forEach((c) => {
+              html += `<div class="combo-group">${c} <span class="cat-badge">${groups[c].length}</span></div>`;
+              groups[c].forEach((p) => {
+                const meta = [
+                  p.category,
+                  p.ref || "",
+                  p.quantity !== "" ? `stock ${p.quantity}` : "",
+                ]
+                  .filter(Boolean)
+                  .join(" · ");
+                const safeId = encodeURIComponent(p.id);
+                html += `<div class="combo-opt" onmousedown="Picker.pickMaterial(decodeURIComponent('${safeId}'))">
+        <span class="nm">${p.name}</span><span class="meta">${meta}</span></div>`;
+              });
+            });
+          $("#mat-list").innerHTML = html;
+        },
+        pickMaterial(id) {
+          const p = Data.products().find((x) => String(x.id) === String(id));
+          if (!p) return;
+          Picker.selProduct = p;
+          $("#t-mat").value = p.id;
+          $("#mat-search").value = p.name;
+          Picker.hideAll();
+          const ls = $("#lot-search");
+          ls.disabled = false;
+          ls.value = "";
+          $("#t-lot").value = "";
+          ls.placeholder = "Search lot / batch…";
+          Picker.renderBatches("");
+          const n = Data.batchesForProduct(p).length;
+          if (!n) toast("No batches found for this product.", "err");
+        },
+        renderBatches(filter) {
+          const p = Picker.selProduct;
+          if (!p) {
+            $("#lot-list").innerHTML = "";
+            return;
+          }
+          const f = (filter || "").toLowerCase().trim();
+          const list = Data.batchesForProduct(p).filter(
+            (b) =>
+              !f ||
+              (b.lot && b.lot.toLowerCase().includes(f)) ||
+              (b.ref && b.ref.toLowerCase().includes(f)),
+          );
+          let html = "";
+          if (!list.length)
+            html = `<div class="combo-empty">No batches${f ? ` matching “${filter}”` : ""} for ${p.name}.</div>`;
+          else
+            list.forEach((b) => {
+              const s = lotStatus(b);
+              const safeBatchId = encodeURIComponent(b.id);
+              html += `<div class="combo-opt" onmousedown="Picker.pickBatch(decodeURIComponent('${safeBatchId}'))">
+        <span class="nm">${b.lot}</span>
+        <span class="meta">exp ${fmtDate(b.exp)} · <span class="pill ${s.cls}" style="padding:2px 7px">${s.label}</span></span></div>`;
+            });
+          $("#lot-list").innerHTML = html;
+        },
+        pickBatch(id) {
+          const b = Data.batches().find((x) => String(x.id) === String(id));
+          if (!b) return;
+          $("#t-lot").value = b.id;
+          $("#lot-search").value = b.lot + "  ·  exp " + fmtDate(b.exp);
+          Picker.hideAll();
+        },
+      };
+      // close dropdowns when clicking outside
+      document.addEventListener("click", (e) => {
+        if (!e.target.closest(".combo")) Picker.hideAll();
+      });
+
+      /* ============================================================ Test runner */
+      const Test = {
+        data: null,
+        activeCat: "Physical",
+        init() {
+          Picker.init();
+          Picker.reset();
+          $("#test-panel").style.display = "none";
+        },
+        start() {
+          const pid = $("#t-mat").value,
+            lotId = $("#t-lot").value;
+          if (!pid) {
+            toast("Select a material / product.", "err");
+            return;
+          }
+          if (!lotId) {
+            toast("Select a batch / lot.", "err");
+            return;
+          }
+          const product = Data.products().find(
+            (p) => String(p.id) === String(pid),
+          );
+          const batch = Data.batches().find(
+            (b) => String(b.id) === String(lotId),
+          );
+          if (!product || !batch) {
+            toast("Selection not found — refresh data and retry.", "err");
+            return;
+          }
+          const selectedBatchStatus = lotStatus(batch);
+          if (!selectedBatchStatus.ok) {
+            toast(
+              `This batch is ${selectedBatchStatus.label}; it cannot be tested, released, or sold.`,
+              "err",
+            );
+            return;
+          }
+          const ptype = resolvePanelType(product);
+          Test.data = {
+            matKey: ptype,
+            matName: product.name,
+            lot: batch.lot,
+            ref: batch.ref || product.ref || "",
+            mfg: batch.mfg || "",
+            exp: batch.exp || "",
+            analyst: $("#t-analyst").value,
+            panel: panelFor(ptype, product.name),
+            strains: STRAIN_OF[ptype] || [],
+            syncProduct: {
+              id: product.id,
+              firestoreId: product.firestoreId,
+              collectionName: product.collectionName,
+              name: product.name,
+              category: product.category,
+              ref: product.ref || "",
+            },
+            syncBatch: {
+              id: batch.id,
+              firestoreId: batch.firestoreId || "",
+              sourceKind: batch.sourceKind || "",
+              lot: batch.lot,
+              ref: batch.ref || "",
+              mfg: batch.mfg || "",
+              exp: batch.exp || "",
+              productId: batch.productId || "",
+              productUid: batch.productUid || "",
+              productCategory: batch.productCategory || product.category,
+              productName: batch.productName || product.name,
+            },
+          };
+          Test.activeCat = "Physical";
+          $("#panel-meta").innerHTML =
+            `<div class="eyebrow">Testing</div><div style="font-size:16px;font-weight:600;color:var(--navy-900)">${product.name}</div>
+      <div class="tiny-mono">Lot ${batch.lot} · exp ${fmtDate(batch.exp)} · ${product.category}</div>`;
+          $("#test-panel").style.display = "block";
+          Test.render();
+          $("#test-panel").scrollIntoView({ behavior: "smooth" });
+        },
+        tab(c) {
+          Test.activeCat = c;
+          $$(".cat-tab").forEach((t) =>
+            t.classList.toggle("active", t.dataset.cat === c),
+          );
+          Test.renderCat();
+        },
+        render() {
+          $$(".cat-tab").forEach((t) =>
+            t.classList.toggle("active", t.dataset.cat === Test.activeCat),
+          );
+          Test.renderCat();
+          Test.updateVerdict();
+        },
+        renderCat() {
+          const sec = Test.data.panel.find((s) => s.cat === Test.activeCat);
+          Test.data.panel.forEach((s) => {
+            const { pass, fail } = tally([s]);
+            const el = $("#cb-" + s.cat);
+            if (el) el.textContent = `${pass + fail}/${s.tests.length}`;
+          });
+          let rows = sec.tests
+            .map((t, ti) => {
+              const v = evalTest(t);
+              const ci = Test.data.panel.indexOf(sec);
+              let specCell, resultCell;
+              if (t.kind === "choice") {
+                specCell = `<span class="sub-note">${t.expect}</span>`;
+                resultCell = `<select onchange="Test.set(${ci},${ti},this.value)"><option value="">—</option>${t.opts.map((o) => `<option ${t.result === o ? "selected" : ""}>${o}</option>`).join("")}</select>`;
+              } else if (t.kind === "pass") {
+                specCell = `<span class="sub-note">Pass (no defect)</span>`;
+                resultCell = `<select onchange="Test.set(${ci},${ti},this.value)"><option value="">—</option><option ${t.result === "Pass" ? "selected" : ""}>Pass</option><option ${t.result === "Fail" ? "selected" : ""}>Fail</option></select>`;
+              } else {
+                let spec;
+                if (t.kind === "range")
+                  spec = `<div class="spec-mini"><input type="number" value="${t.lo}" onchange="Test.spec(${ci},${ti},'lo',this.value)" placeholder="lo"><span>–</span><input type="number" value="${t.hi}" onchange="Test.spec(${ci},${ti},'hi',this.value)" placeholder="hi"><span class="tiny-mono">${t.unit || ""}</span></div>`;
+                else if (t.kind === "min")
+                  spec = `<div class="spec-mini"><span>≥</span><input type="number" value="${t.lo}" onchange="Test.spec(${ci},${ti},'lo',this.value)"><span class="tiny-mono">${t.unit || ""}</span></div>`;
+                else
+                  spec = `<div class="spec-mini"><span>≤</span><input type="number" value="${t.hi}" onchange="Test.spec(${ci},${ti},'hi',this.value)"><span class="tiny-mono">${t.unit || ""}</span></div>`;
+                specCell = spec;
+                resultCell = `<input type="number" value="${t.result}" onchange="Test.set(${ci},${ti},this.value)" placeholder="${t.unit || "value"}">`;
+              }
+              return `<tr><td class="pname">${t.name}<div class="meth">${t.method}</div></td>
+        <td style="width:150px">${specCell}</td><td style="width:150px">${resultCell}</td><td style="width:70px">${vpill(v)}</td></tr>`;
+            })
+            .join("");
+          $("#cat-body").innerHTML =
+            `<table class="test-table"><thead><tr><th>Parameter / method</th><th>Acceptance criterion</th><th>Result</th><th>Verdict</th></tr></thead><tbody>${rows}</tbody></table>`;
+        },
+        set(ci, ti, val) {
+          Test.data.panel[ci].tests[ti].result = val;
+          Test.render();
+        },
+        spec(ci, ti, f, val) {
+          Test.data.panel[ci].tests[ti][f] = val;
+          Test.render();
+        },
+        updateVerdict() {
+          const { pass, fail } = tally(Test.data.panel);
+          let incomplete = 0;
+          Test.data.panel.forEach((s) =>
+            s.tests.forEach((t) => {
+              if (evalTest(t) === "—") incomplete++;
+            }),
+          );
+          const verdict =
+            fail > 0
+              ? "Non-conforming"
+              : incomplete > 0
+                ? "Incomplete"
+                : "Conforms";
+          const lastQC = State.qc[State.qc.length - 1];
+          const qcLock = lastQC && !lastQC.pass;
+          Test._verdict = verdict;
+          const color =
+            verdict === "Conforms"
+              ? "var(--green)"
+              : verdict === "Non-conforming"
+                ? "var(--red)"
+                : "var(--amber)";
+          $("#verdict-bar").innerHTML =
+            `<div><div class="eyebrow" style="color:#9fc0d8">Live conformance</div>
+      <div class="big">${verdict}</div></div>
+      <div style="display:flex;gap:24px;text-align:center">
+        <div><div class="mono" style="font-size:22px;color:#7ee0a8">${pass}</div><div class="tiny-mono" style="color:#bcd2e4">passed</div></div>
+        <div><div class="mono" style="font-size:22px;color:#f2a59b">${fail}</div><div class="tiny-mono" style="color:#bcd2e4">failed</div></div>
+        <div><div class="mono" style="font-size:22px;color:#ffd98a">${incomplete}</div><div class="tiny-mono" style="color:#bcd2e4">pending</div></div>
+      </div>
+      <span class="pill" style="background:${color};color:#fff">${qcLock ? "QC_LOCKOUT — optics" : "Optics OK"}</span>`;
+          $("#note-wrap").style.display = fail > 0 ? "block" : "none";
+          const canRelease = verdict === "Conforms" && !qcLock;
+          $("#release-btn").disabled = !canRelease;
+        },
+        async save(mode) {
+          const d = Test.data;
+          const { pass, fail } = tally(d.panel);
+          let incomplete = 0;
+          d.panel.forEach((s) =>
+            s.tests.forEach((t) => {
+              if (evalTest(t) === "—") incomplete++;
+            }),
+          );
+          const verdict =
+            fail > 0
+              ? "Non-conforming"
+              : incomplete > 0
+                ? "Incomplete"
+                : "Conforms";
+          if (mode === "Released") {
+            if (verdict !== "Conforms") {
+              toast(
+                "Cannot release a non-conforming or incomplete batch.",
+                "err",
+              );
+              return;
+            }
+            const lastQC = State.qc[State.qc.length - 1];
+            if (lastQC && !lastQC.pass) {
+              toast(
+                "Instrument QC_LOCKOUT active — clear fluorescence QC first.",
+                "err",
+              );
+              return;
+            }
+            if (($("#t-pw").value || "").length < 4) {
+              toast("QC credential required to release.", "err");
+              return;
+            }
+          }
+          if (mode === "Quarantined" && fail === 0) {
+            toast("No failing result to quarantine — review results.", "err");
+            return;
+          }
+          const nextSeq = State.seq + 1;
+          const record = {
+            id:
+              "QC-" +
+              todayISO().replace(/-/g, "") +
+              "-" +
+              String(nextSeq).padStart(4, "0"),
+            matKey: d.matKey,
+            matName: d.matName,
+            lot: d.lot,
+            ref: d.ref,
+            mfg: d.mfg,
+            exp: d.exp,
+            analyst: $("#t-analyst").value,
+            date: todayISO(),
+            panel: JSON.parse(JSON.stringify(d.panel)),
+            verdict,
+            status: mode,
+            pass,
+            fail,
+            note: $("#t-note").value || "",
+            strains: d.strains,
+            auth: mode === "Released" ? $("#t-auth").value : "",
+            sw: "v1.0.3",
+            cv: "IDIEX-CV-v1.0.2",
+            serial: "IDX-PROD-2026-0001",
+          };
+
+          try {
+            await syncRecordToFirestore(
+              record,
+              mode,
+              d.syncProduct,
+              d.syncBatch,
+            );
+          } catch (err) {
+            console.error("QC Firestore sync failed:", err);
+            toast(
+              "Could not update Production Hall / Node QC status: " +
+                err.message,
+              "err",
+            );
+            return;
+          }
+
+          State.seq = nextSeq;
+          State.records.push(record);
+          persist();
+          $("#test-panel").style.display = "none";
+          Test.data = null;
+          $("#t-pw").value = "";
+          $("#t-note").value = "";
+          Picker.reset();
+          toast(
+            mode === "Released"
+              ? "Batch released — CoA available."
+              : mode === "Quarantined"
+                ? "Batch quarantined."
+                : "Saved in progress.",
+            "ok",
+          );
+          App.go("reports");
+        },
+      };
+
+      /* ============================================================ Fluorescence QC */
+      const QC = {
+        add() {
+          const m = +$("#qc-mean").value,
+            sd = +$("#qc-sd").value,
+            a = +$("#qc-a").value,
+            b = +$("#qc-b").value;
+          if ([m, sd, a, b].some(isNaN) || sd <= 0) {
+            toast("Enter valid target, SD and both readings.", "err");
+            return;
+          }
+          const mean = (a + b) / 2,
+            z = (mean - m) / sd,
+            pass = Math.abs(z) <= 2;
+          State.qc.push({
+            date: new Date().toISOString(),
+            a,
+            b,
+            mean,
+            mean0: m,
+            sd,
+            z,
+            pass,
+          });
+          persist();
+          QC.render();
+          $("#qc-verdict").innerHTML = pass
+            ? `<div class="callout co-green"><span class="ic">✓</span><div>QC pass — Z = ${z.toFixed(2)} SD.</div></div>`
+            : `<div class="callout co-red"><span class="ic">⛔</span><div><b>QC_LOCKOUT</b> — Z = ${z.toFixed(2)} SD beyond ±2 SD. Wipe optical path & re-run.</div></div>`;
+          $("#qc-a").value = "";
+          $("#qc-b").value = "";
+          App.renderDash();
+        },
+        render() {
+          const b = $("#qc-body");
+          b.innerHTML = State.qc.length
+            ? State.qc
+                .slice()
+                .reverse()
+                .map(
+                  (q) => `<tr>
+    <td class="mono">${new Date(q.date).toLocaleString("en-GB")}</td><td class="mono">${q.a}</td><td class="mono">${q.b}</td>
+    <td class="mono">${q.mean.toFixed(1)}</td><td class="mono">${q.z.toFixed(2)}</td>
+    <td>${q.pass ? '<span class="pill p-green">Pass</span>' : '<span class="pill p-red">LOCKOUT</span>'}</td></tr>`,
+                )
+                .join("")
+            : `<tr><td colspan="6" class="empty">No QC runs.</td></tr>`;
+          const last = State.qc[State.qc.length - 1];
+          $("#qc-status-tag").textContent = last
+            ? last.pass
+              ? "within limits"
+              : "LOCKOUT"
+            : "—";
+          QC.draw();
+        },
+        draw() {
+          const cv = $("#ljchart");
+          if (!cv) return;
+          const ctx = cv.getContext("2d");
+          const W = cv.width,
+            H = cv.height,
+            pL = 44,
+            pR = 14,
+            pT = 16,
+            pB = 26;
+          ctx.clearRect(0, 0, W, H);
+          const data = State.qc;
+          const m = data.length ? data[data.length - 1].mean0 : 100,
+            sd = data.length ? data[data.length - 1].sd : 4;
+          const lo = m - 3.6 * sd,
+            hi = m + 3.6 * sd;
+          const x = (i) =>
+            pL +
+            (data.length <= 1 ? 0.5 : i / (data.length - 1)) * (W - pL - pR);
+          const y = (v) => pT + (1 - (v - lo) / (hi - lo)) * (H - pT - pB);
+          [
+            [3, "#fbe9e7"],
+            [2, "#fbf2dc"],
+            [1, "#fff"],
+          ].forEach(([k, c]) => {
+            ctx.fillStyle = c;
+            ctx.fillRect(
+              pL,
+              y(m + k * sd),
+              W - pL - pR,
+              y(m - k * sd) - y(m + k * sd),
+            );
+          });
+          ctx.font = "10px 'IBM Plex Mono'";
+          ctx.textBaseline = "middle";
+          [
+            [3, "#bf3326"],
+            [2, "#bd7d09"],
+            [1, "#cbd6e2"],
+            [0, "#1b3c61"],
+          ].forEach(([k, c]) => {
+            [k, -k].forEach((s) => {
+              if (k === 0 && s !== 0) return;
+              const yy = y(m + s * sd);
+              ctx.strokeStyle = c;
+              ctx.lineWidth = k === 0 ? 1.4 : 1;
+              ctx.setLineDash(k === 0 ? [] : [4, 3]);
+              ctx.beginPath();
+              ctx.moveTo(pL, yy);
+              ctx.lineTo(W - pR, yy);
+              ctx.stroke();
+              ctx.fillStyle = c;
+              ctx.fillText(
+                (s > 0 ? "+" : s < 0 ? "−" : "") +
+                  (s !== 0 ? Math.abs(s) + "SD" : "x̄"),
+                4,
+                yy,
+              );
+            });
+          });
+          ctx.setLineDash([]);
+          if (data.length) {
+            ctx.strokeStyle = "#0c8c8c";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            data.forEach((q, i) => {
+              const px = x(i),
+                py = y(q.mean);
+              i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+            });
+            ctx.stroke();
+            data.forEach((q, i) => {
+              const px = x(i),
+                py = y(q.mean);
+              ctx.beginPath();
+              ctx.arc(px, py, 4, 0, 7);
+              ctx.fillStyle = q.pass ? "#0c8c8c" : "#bf3326";
+              ctx.fill();
+              ctx.strokeStyle = "#fff";
+              ctx.lineWidth = 1.5;
+              ctx.stroke();
+            });
+          } else {
+            ctx.fillStyle = "#8aa0b5";
+            ctx.font = "12px 'IBM Plex Sans'";
+            ctx.textAlign = "center";
+            ctx.fillText("No QC data — record a run.", W / 2, H / 2);
+            ctx.textAlign = "left";
+          }
+        },
+      };
+
+      /* ============================================================ Certificate of Analysis */
+      const CoA = {
+        async generate(idx) {
+          const r = State.records[idx];
+          const { jsPDF } = window.jspdf;
+          const doc = new jsPDF({ unit: "pt", format: "a4" });
+          const W = doc.internal.pageSize.getWidth(),
+            M = 40;
+          let y = 0;
+          const NAVY = [20, 47, 76],
+            TEAL = [12, 140, 140],
+            GREY = [93, 113, 134],
+            LINE = [215, 224, 234];
+          const digest = await CoA.sha256(
+            JSON.stringify({
+              id: r.id,
+              mat: r.matName,
+              lot: r.lot,
+              panel: r.panel,
+              verdict: r.verdict,
+            }),
+          );
+          doc.setFillColor(...NAVY);
+          doc.rect(0, 0, W, 80, "F");
+          doc.setFillColor(...TEAL);
+          doc.rect(0, 80, W, 3, "F");
+          doc.setTextColor(255, 255, 255);
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(15);
+          doc.text("Miracell for Medical Industries", M, 30);
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(9);
+          doc.setTextColor(190, 210, 228);
+          doc.text(
+            "CERTIFICATE OF ANALYSIS — Consumable Batch Quality Control",
+            M,
+            46,
+          );
+          doc.text(
+            "396 Industrial Zone, New Cairo, Egypt · ISO 13485:2016",
+            M,
+            59,
+          );
+          doc.text(
+            "Physical · Chemical · Microbiological characterization",
+            M,
+            71,
+          );
+          doc.setTextColor(255, 255, 255);
+          doc.setFontSize(20);
+          doc.setFont("helvetica", "bold");
+          doc.text("CC", W - M - 26, 42);
+          doc.setDrawColor(...TEAL);
+          doc.setLineWidth(1.4);
+          doc.rect(W - M - 34, 20, 30, 30);
+          y = 100;
+          doc.setTextColor(...GREY);
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(8.4);
+          doc.text(`CoA / QC ID: ${r.id}`, M, y);
+          doc.text(
+            `Generated: ${new Date().toLocaleString("en-GB")}`,
+            W - M,
+            y,
+            { align: "right" },
+          );
+          y += 14;
+
+          const sec = (t) => {
+            doc.setFillColor(...NAVY);
+            doc.rect(M, y, W - 2 * M, 18, "F");
+            doc.setTextColor(255, 255, 255);
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(9.5);
+            doc.text(t.toUpperCase(), M + 8, y + 12.5);
+            y += 18;
+          };
+          const kv = (rows) => {
+            doc.autoTable({
+              startY: y,
+              margin: { left: M, right: M },
+              theme: "grid",
+              styles: {
+                fontSize: 8.6,
+                cellPadding: 4,
+                lineColor: LINE,
+                lineWidth: 0.5,
+                textColor: [15, 29, 46],
+              },
+              columnStyles: {
+                0: {
+                  cellWidth: 135,
+                  fontStyle: "bold",
+                  fillColor: [247, 250, 252],
+                  textColor: NAVY,
+                },
+              },
+              body: rows,
+            });
+            y = doc.lastAutoTable.finalY + 10;
+          };
+
+          sec("Material & batch identification");
+          kv([
+            ["Material", r.matName],
+            ["Catalogue REF", r.ref || "—"],
+            ["Lot / batch", r.lot],
+            ["Manufacture", fmtDate(r.mfg)],
+            ["Expiry", fmtDate(r.exp)],
+            ["Instrument / SW / CV", `${r.serial} · ${r.sw} · ${r.cv}`],
+            ["Analyst", r.analyst],
+            ["Test date", fmtDate(r.date)],
+          ]);
+
+          r.panel.forEach((s) => {
+            if (y > 690) {
+              doc.addPage();
+              y = 40;
+            }
+            sec(s.cat + " characterization");
+            doc.autoTable({
+              startY: y,
+              margin: { left: M, right: M },
+              theme: "striped",
+              headStyles: { fillColor: NAVY, fontSize: 8 },
+              styles: {
+                fontSize: 8,
+                cellPadding: 3.5,
+                lineColor: LINE,
+                lineWidth: 0.4,
+              },
+              columnStyles: {
+                3: { halign: "center", fontStyle: "bold", cellWidth: 48 },
+              },
+              head: [
+                [
+                  "Parameter",
+                  "Method",
+                  "Acceptance criterion",
+                  "Result",
+                  "Verdict",
+                ],
+              ],
+              body: s.tests.map((t) => [
+                t.name,
+                t.method,
+                specText(t),
+                t.result === ""
+                  ? "—"
+                  : t.result +
+                    (t.unit && !isNaN(parseFloat(t.result))
+                      ? " " + t.unit
+                      : ""),
+                evalTest(t),
+              ]),
+              didParseCell: (d) => {
+                if (d.section === "body" && d.column.index === 4) {
+                  const v = d.cell.raw;
+                  d.cell.styles.textColor =
+                    v === "Pass"
+                      ? [28, 138, 77]
+                      : v === "Fail"
+                        ? [191, 51, 38]
+                        : [150, 160, 170];
+                }
+              },
+            });
+            y = doc.lastAutoTable.finalY + 10;
+          });
+
+          if (r.strains && r.strains.length) {
+            if (y > 720) {
+              doc.addPage();
+              y = 40;
+            }
+            sec("Reference strains used");
+            kv([
+              ["ATCC strains", r.strains.join("  ·  ")],
+              [
+                "Standards",
+                "ISO 11133 (growth promotion) · CLSI M100-Ed34 (ID/AST QC)",
+              ],
+            ]);
+          }
+
+          if (y > 700) {
+            doc.addPage();
+            y = 40;
+          }
+          sec("Disposition");
+          kv([
+            ["Tests passed / failed", `${r.pass} passed · ${r.fail} failed`],
+            ["Overall verdict", r.verdict],
+            ["Batch disposition", r.status],
+            ["Deviation / NC note", r.note || "—"],
+          ]);
+
+          doc.setDrawColor(...LINE);
+          doc.setLineWidth(0.6);
+          doc.line(M, y, W - M, y);
+          y += 14;
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(11);
+          doc.setTextColor(
+            ...(r.verdict === "Conforms" ? [28, 138, 77] : [191, 51, 38]),
+          );
+          doc.text(
+            r.verdict === "Conforms"
+              ? "BATCH CONFORMS — RELEASED FOR USE"
+              : "BATCH NON-CONFORMING — QUARANTINED",
+            M,
+            y,
+          );
+          y += 16;
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(8.2);
+          doc.setTextColor(15, 29, 46);
+          doc.text(`Authorised by: ${r.auth || "— pending —"}`, M, y);
+          y += 11;
+          doc.text(
+            `Date: ${r.status === "Released" ? new Date().toLocaleString("en-GB") : "—"}`,
+            M,
+            y,
+          );
+          y += 12;
+          doc.setTextColor(...GREY);
+          doc.setFontSize(7);
+          doc.text("Content SHA-256 digest:", M, y);
+          y += 9;
+          doc.setFont("courier", "normal");
+          (digest.match(/.{1,64}/g) || [digest]).forEach((line) => {
+            doc.text(line, M, y);
+            y += 9;
+          });
+
+          const pages = doc.internal.getNumberOfPages();
+          for (let i = 1; i <= pages; i++) {
+            doc.setPage(i);
+            const HH = doc.internal.pageSize.getHeight();
+            doc.setDrawColor(...LINE);
+            doc.setLineWidth(0.5);
+            doc.line(M, HH - 28, W - M, HH - 28);
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(7);
+            doc.setTextColor(...GREY);
+            doc.text(
+              "Miracell IDIEX Material QC · Certificate of Analysis · Confidential controlled record",
+              M,
+              HH - 16,
+            );
+            doc.text(`Page ${i} of ${pages}`, W - M, HH - 16, {
+              align: "right",
+            });
+          }
+          doc.save(`${r.id}_CoA.pdf`);
+          toast("Certificate of Analysis generated.", "ok");
+        },
+        async sha256(str) {
+          try {
+            const b = await crypto.subtle.digest(
+              "SHA-256",
+              new TextEncoder().encode(str),
+            );
+            return [...new Uint8Array(b)]
+              .map((x) => x.toString(16).padStart(2, "0"))
+              .join("");
+          } catch (e) {
+            let h = 0;
+            for (const c of str) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+            return ("idx" + h.toString(16)).padEnd(64, "0");
+          }
+        },
+      };
+
+      $("#lot-modal").addEventListener("click", (e) => {
+        if (e.target.id === "lot-modal") App.closeLotModal();
+      });
+      App.init();
+    </script>
+  </body>
+</html>
